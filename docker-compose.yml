@@ -1,0 +1,140 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: devflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: devflow
+      POSTGRES_USER: devflow
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U devflow']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: devflow-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Server
+  temporal:
+    image: temporalio/auto-setup:1.22.4
+    container_name: devflow-temporal
+    restart: unless-stopped
+    ports:
+      - '7233:7233'
+      - '8233:8233'
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=devflow
+      - POSTGRES_PWD=changeme
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - temporal-data:/etc/temporal
+
+  # Temporal Web UI
+  temporal-ui:
+    image: temporalio/ui:2.21.3
+    container_name: devflow-temporal-ui
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - temporal
+
+  # DevFlow API (NestJS)
+  api:
+    build:
+      context: .
+      dockerfile: ./packages/api/Dockerfile
+    container_name: devflow-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=development
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=devflow
+      - DATABASE_USER=devflow
+      - DATABASE_PASSWORD=changeme
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    volumes:
+      - ./packages/api:/app/packages/api
+      - ./packages/common:/app/packages/common
+      - ./packages/sdk:/app/packages/sdk
+      - /app/node_modules
+      - /app/packages/api/node_modules
+
+  # DevFlow Worker (Temporal)
+  worker:
+    build:
+      context: .
+      dockerfile: ./packages/worker/Dockerfile
+    container_name: devflow-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=devflow
+      - DATABASE_USER=devflow
+      - DATABASE_PASSWORD=changeme
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    volumes:
+      - ./packages/worker:/app/packages/worker
+      - ./packages/common:/app/packages/common
+      - ./packages/sdk:/app/packages/sdk
+      - /app/node_modules
+      - /app/packages/worker/node_modules
+
+volumes:
+  postgres-data:
+  redis-data:
+  temporal-data:
+

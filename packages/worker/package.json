@@ -1,0 +1,33 @@
+{
+  "name": "@devflow/worker",
+  "version": "1.0.0",
+  "description": "Temporal workers for DevFlow workflows",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": ["devflow", "temporal", "worker", "workflow"],
+  "author": "DevFlow Team",
+  "license": "MIT",
+  "dependencies": {
+    "@devflow/common": "workspace:*",
+    "@devflow/sdk": "workspace:*",
+    "@temporalio/worker": "^1.9.0",
+    "@temporalio/activity": "^1.9.0",
+    "@temporalio/workflow": "^1.9.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
+

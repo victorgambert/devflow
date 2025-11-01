@@ -1,0 +1,939 @@
+// DevFlow Prisma Schema
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Projects
+// ============================================
+
+model Project {
+  id            String   @id @default(uuid())
+  name          String
+  description   String
+  repository    String
+  workspacePath String?  @map("workspace_path")
+  
+  // Configuration (stored as JSONB)
+  config        Json
+  
+  // Metadata
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  tasks         Task[]
+  workflows     Workflow[]
+  organizations OrganizationProject[]
+  
+  @@map("projects")
+  @@index([name])
+  @@index([isActive])
+}
+
+// ============================================
+// Tasks (from Notion)
+// ============================================
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  TESTING
+  DONE
+  BLOCKED
+  CANCELLED
+  
+  @@map("task_status")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  
+  @@map("task_priority")
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  projectId   String       @map("project_id")
+  notionId    String?      @unique @map("notion_id")
+  
+  // Task details
+  title       String
+  description String       @db.Text
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  
+  // Assignment
+  assignee    String?
+  epic        String?
+  storyPoints Int?         @map("story_points")
+  labels      String[]     @default([])
+  
+  // Metadata (additional fields from Notion)
+  metadata    Json?
+  
+  // Timestamps
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  
+  // Relations
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workflows   Workflow[]
+  specs       TaskSpec[]
+  
+  @@map("tasks")
+  @@index([projectId])
+  @@index([notionId])
+  @@index([status])
+  @@index([priority])
+}
+
+// ============================================
+// Task Specifications (AI-generated)
+// ============================================
+
+model TaskSpec {
+  id                   String   @id @default(uuid())
+  taskId               String   @map("task_id")
+  
+  // Spec content
+  content              String   @db.Text
+  architecture         String[] @default([])
+  implementationSteps  String[] @default([]) @map("implementation_steps")
+  testingStrategy      String   @db.Text @map("testing_strategy")
+  risks                String[] @default([])
+  technicalDecisions   String[] @default([]) @map("technical_decisions")
+  
+  // Metadata
+  estimatedTime        Int?     @map("estimated_time") // in minutes
+  dependencies         String[] @default([])
+  
+  // AI metadata
+  aiProvider           String   @map("ai_provider")
+  aiModel              String   @map("ai_model")
+  tokenUsage           Json?    @map("token_usage")
+  
+  createdAt            DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  task                 Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  @@map("task_specs")
+  @@index([taskId])
+}
+
+// ============================================
+// Workflows (Temporal)
+// ============================================
+
+enum WorkflowStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+  
+  @@map("workflow_status")
+}
+
+enum WorkflowStage {
+  NOTION_SYNC
+  SPEC_GENERATION
+  CODE_GENERATION
+  PR_CREATION
+  CI_EXECUTION
+  QA_TESTING
+  FIX_GENERATION
+  MERGE
+  NOTIFICATION
+  
+  @@map("workflow_stage")
+}
+
+model Workflow {
+  id              String         @id @default(uuid())
+  
+  // Temporal IDs
+  workflowId      String         @unique @map("workflow_id")
+  runId           String?        @map("run_id")
+  
+  // References
+  projectId       String         @map("project_id")
+  taskId          String         @map("task_id")
+  userId          String?        @map("user_id")
+  
+  // Status
+  status          WorkflowStatus @default(PENDING)
+  currentStage    WorkflowStage? @map("current_stage")
+  
+  // Results
+  result          Json?
+  error           String?        @db.Text
+  
+  // Timing
+  startedAt       DateTime?      @map("started_at")
+  completedAt     DateTime?      @map("completed_at")
+  duration        Int?           // in milliseconds
+  
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  
+  // Relations
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  task            Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  stages          WorkflowStageLog[]
+  pullRequests    PullRequest[]
+  
+  @@map("workflows")
+  @@index([workflowId])
+  @@index([projectId])
+  @@index([taskId])
+  @@index([status])
+}
+
+// ============================================
+// Workflow Stage Logs
+// ============================================
+
+model WorkflowStageLog {
+  id          String        @id @default(uuid())
+  workflowId  String        @map("workflow_id")
+  
+  stage       WorkflowStage
+  status      WorkflowStatus
+  
+  data        Json?
+  error       String?       @db.Text
+  
+  startedAt   DateTime      @default(now()) @map("started_at")
+  completedAt DateTime?     @map("completed_at")
+  duration    Int?          // in milliseconds
+  
+  // Relations
+  workflow    Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  @@map("workflow_stage_logs")
+  @@index([workflowId])
+  @@index([stage])
+}
+
+// ============================================
+// Pull Requests
+// ============================================
+
+enum PRStatus {
+  OPEN
+  CLOSED
+  MERGED
+  DRAFT
+  
+  @@map("pr_status")
+}
+
+model PullRequest {
+  id            String    @id @default(uuid())
+  workflowId    String    @map("workflow_id")
+  
+  // VCS details
+  prNumber      Int       @map("pr_number")
+  prUrl         String    @map("pr_url")
+  
+  title         String
+  description   String    @db.Text
+  
+  sourceBranch  String    @map("source_branch")
+  targetBranch  String    @map("target_branch")
+  
+  status        PRStatus  @default(OPEN)
+  
+  // Author
+  author        String
+  reviewers     String[]  @default([])
+  
+  // Metadata
+  commitCount   Int       @default(0) @map("commit_count")
+  filesChanged  Int       @default(0) @map("files_changed")
+  additions     Int       @default(0)
+  deletions     Int       @default(0)
+  
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  mergedAt      DateTime? @map("merged_at")
+  closedAt      DateTime? @map("closed_at")
+  
+  // Relations
+  workflow      Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  ciRuns        CIRun[]
+  
+  @@map("pull_requests")
+  @@index([workflowId])
+  @@index([prNumber])
+  @@index([status])
+}
+
+// ============================================
+// CI Runs
+// ============================================
+
+enum CIStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILURE
+  CANCELLED
+  SKIPPED
+  
+  @@map("ci_status")
+}
+
+model CIRun {
+  id            String    @id @default(uuid())
+  pullRequestId String    @map("pull_request_id")
+  
+  // CI details
+  runId         String    @map("run_id")
+  runUrl        String    @map("run_url")
+  
+  provider      String    // github-actions, gitlab-ci, etc.
+  status        CIStatus  @default(PENDING)
+  
+  // Metadata
+  commitSha     String    @map("commit_sha")
+  branch        String
+  
+  // Results
+  conclusion    String?
+  logs          String?   @db.Text
+  
+  // Test results
+  testResults   Json?     @map("test_results")
+  coverage      Json?
+  
+  // Timing
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  duration      Int?      // in milliseconds
+  
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  pullRequest   PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  jobs          CIJob[]
+  
+  @@map("ci_runs")
+  @@index([pullRequestId])
+  @@index([runId])
+  @@index([status])
+}
+
+// ============================================
+// CI Jobs
+// ============================================
+
+model CIJob {
+  id          String    @id @default(uuid())
+  ciRunId     String    @map("ci_run_id")
+  
+  jobId       String    @map("job_id")
+  jobUrl      String    @map("job_url")
+  
+  name        String
+  stage       String?
+  status      CIStatus  @default(PENDING)
+  
+  logs        String?   @db.Text
+  
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  duration    Int?      // in milliseconds
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  
+  // Relations
+  ciRun       CIRun     @relation(fields: [ciRunId], references: [id], onDelete: Cascade)
+  
+  @@map("ci_jobs")
+  @@index([ciRunId])
+  @@index([jobId])
+}
+
+// ============================================
+// Notifications
+// ============================================
+
+enum NotificationChannel {
+  SLACK
+  DISCORD
+  EMAIL
+  WEBHOOK
+  
+  @@map("notification_channel")
+}
+
+enum NotificationEvent {
+  WORKFLOW_STARTED
+  WORKFLOW_COMPLETED
+  WORKFLOW_FAILED
+  SPEC_GENERATED
+  PR_CREATED
+  PR_MERGED
+  CI_FAILED
+  CI_PASSED
+  TESTS_FAILED
+  QA_COMPLETED
+  
+  @@map("notification_event")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  
+  @@map("notification_status")
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  
+  event     NotificationEvent
+  channel   NotificationChannel
+  
+  title     String
+  message   String              @db.Text
+  data      Json?
+  
+  status    NotificationStatus  @default(PENDING)
+  error     String?
+  
+  sentAt    DateTime?           @map("sent_at")
+  createdAt DateTime            @default(now()) @map("created_at")
+  
+  @@map("notifications")
+  @@index([status])
+  @@index([event])
+  @@index([channel])
+}
+
+// ============================================
+// API Keys & Authentication
+// ============================================
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  
+  name        String
+  key         String   @unique
+  
+  // Permissions
+  scopes      String[] @default([])
+  
+  // Usage
+  lastUsedAt  DateTime? @map("last_used_at")
+  usageCount  Int       @default(0) @map("usage_count")
+  
+  // Status
+  isActive    Boolean   @default(true) @map("is_active")
+  expiresAt   DateTime? @map("expires_at")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  
+  @@map("api_keys")
+  @@index([key])
+  @@index([isActive])
+}
+
+// ============================================
+// Audit Logs
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  
+  entity      String   // project, task, workflow, etc.
+  entityId    String   @map("entity_id")
+  action      String   // create, update, delete, etc.
+  
+  userId      String?  @map("user_id")
+  
+  // Changes
+  before      Json?
+  after       Json?
+  
+  // Metadata
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@map("audit_logs")
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ============================================
+// Organizations & Users (Phase 9)
+// ============================================
+
+model Organization {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  
+  // Quotas (Phase 10 - Billing)
+  tokenQuota  Int      @default(1000000) @map("token_quota")  // 1M tokens
+  costQuota   Float    @default(100.0) @map("cost_quota")     // $100
+  
+  // Billing
+  stripeCustomerId String? @map("stripe_customer_id")
+  billingEmail     String? @map("billing_email")
+  
+  // Settings
+  settings    Json?
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  members     OrganizationMember[]
+  projects    OrganizationProject[]
+  usageRecords UsageRecord[]
+  invoices    Invoice[]
+  apiKeys     OrganizationApiKey[]
+  dataExports DataExport[]
+  
+  @@map("organizations")
+  @@index([slug])
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatar        String?
+  
+  // SSO (Phase 9)
+  ssoProvider   String?  @map("sso_provider") // google, github, okta, azure, auth0
+  ssoId         String?  @map("sso_id")
+  
+  // Compliance
+  gdprConsent   Boolean  @default(false) @map("gdpr_consent")
+  gdprConsentAt DateTime? @map("gdpr_consent_at")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+  
+  // Relations
+  organizations OrganizationMember[]
+  apiKeys       OrganizationApiKey[]
+  dataExports   DataExport[]
+  
+  @@map("users")
+  @@index([email])
+  @@index([ssoProvider, ssoId])
+}
+
+enum Role {
+  OWNER       // Full access to org (billing, delete)
+  ADMIN       // Manage projects, quotas, members
+  MAINTAINER  // Merge policies, retry, CI management
+  VIEWER      // Read-only access
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           Role     @default(VIEWER)
+  
+  joinedAt       DateTime @default(now()) @map("joined_at")
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+  @@index([userId])
+}
+
+model OrganizationProject {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  projectId      String   @map("project_id")
+  
+  // Project-specific settings
+  notionDbId     String?  @map("notion_db_id")
+  vcsDriver      String?  @map("vcs_driver")  // github, gitlab, bitbucket
+  ciDriver       String?  @map("ci_driver")   // github-actions, gitlab-ci, bitbucket-pipelines
+  previewDriver  String?  @map("preview_driver") // vercel, render, fly, k8s
+  
+  createdAt      DateTime @default(now()) @map("created_at")
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@unique([organizationId, projectId])
+  @@map("organization_projects")
+  @@index([projectId])
+}
+
+model OrganizationApiKey {
+  id             String   @id @default(cuid())
+  name           String
+  key            String   @unique  // hashed (bcrypt or similar)
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  
+  // Permissions
+  scopes         String[] @default([])
+  
+  // Lifecycle
+  expiresAt      DateTime? @map("expires_at")
+  lastUsedAt     DateTime? @map("last_used_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("organization_api_keys")
+  @@index([organizationId])
+  @@index([key])
+}
+
+// ============================================
+// Billing & Usage (Phase 10)
+// ============================================
+
+enum UsageType {
+  TICKET_PROCESSED      // 1 ticket traité
+  CI_MINUTES           // Minutes CI orchestrées
+  LLM_TOKENS_INPUT     // Tokens LLM (input)
+  LLM_TOKENS_OUTPUT    // Tokens LLM (output)
+  PREVIEW_DEPLOY       // 1 preview app déployée
+  PREVIEW_HOURS        // Heures de preview app active
+  STORAGE_GB_HOURS     // GB·hours de stockage artefacts
+  API_CALLS            // API calls
+}
+
+model UsageRecord {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  
+  // Usage details
+  type           UsageType
+  quantity       Float     // ex: 500000 tokens, 45 minutes, 1 ticket
+  unit           String    // tokens, minutes, deploys, gb-hours, etc.
+  
+  // Cost
+  unitPrice      Float     @map("unit_price")  // Prix unitaire
+  totalCost      Float     @map("total_cost")  // quantity * unitPrice
+  
+  // Context
+  resourceId     String?   @map("resource_id")  // workflow_id, pr_id, etc.
+  resourceType   String?   @map("resource_type") // workflow, pr, preview, etc.
+  metadata       Json?
+  
+  // Timestamps
+  periodStart    DateTime  @map("period_start")
+  periodEnd      DateTime  @map("period_end")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@map("usage_records")
+  @@index([organizationId, periodStart])
+  @@index([type])
+  @@index([resourceId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+model Invoice {
+  id                String        @id @default(cuid())
+  organizationId    String        @map("organization_id")
+  
+  // Invoice details
+  invoiceNumber     String        @unique @map("invoice_number") // INV-2025-001
+  status            InvoiceStatus @default(DRAFT)
+  
+  // Billing period
+  periodStart       DateTime      @map("period_start")
+  periodEnd         DateTime      @map("period_end")
+  
+  // Amounts
+  subtotal          Float         // Sous-total HT
+  tax               Float         @default(0.0) // TVA
+  total             Float         // Total TTC
+  currency          String        @default("USD")
+  
+  // Breakdown (JSON)
+  lineItems         Json          @map("line_items") // Array of { type, quantity, unitPrice, total }
+  
+  // Payment
+  stripeInvoiceId   String?       @unique @map("stripe_invoice_id")
+  paidAt            DateTime?     @map("paid_at")
+  dueDate           DateTime?     @map("due_date")
+  
+  // Files
+  pdfUrl            String?       @map("pdf_url")
+  
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@map("invoices")
+  @@index([organizationId])
+  @@index([status])
+  @@index([periodStart, periodEnd])
+}
+
+model PaymentMethod {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  
+  // Payment method details
+  type           String   // card, bank_transfer, invoice
+  last4          String?  // Last 4 digits (if card)
+  brand          String?  // visa, mastercard, etc.
+  
+  // Stripe
+  stripePaymentMethodId String? @unique @map("stripe_payment_method_id")
+  
+  // Status
+  isDefault      Boolean  @default(false) @map("is_default")
+  isActive       Boolean  @default(true) @map("is_active")
+  
+  expiresAt      DateTime? @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  
+  @@map("payment_methods")
+  @@index([organizationId])
+}
+
+// ============================================
+// Compliance & GDPR (Phase 10)
+// ============================================
+
+enum DataRetentionPolicyType {
+  AUDIT_LOGS
+  WORKFLOW_LOGS
+  CI_LOGS
+  USAGE_RECORDS
+  INVOICES
+  USER_DATA
+}
+
+model DataRetentionPolicy {
+  id              String                 @id @default(cuid())
+  type            DataRetentionPolicyType
+  
+  // Retention duration
+  retentionDays   Int                    @map("retention_days") // ex: 90, 365, 2555 (7 ans)
+  
+  // Actions
+  autoDelete      Boolean                @default(true) @map("auto_delete")
+  autoAnonymize   Boolean                @default(false) @map("auto_anonymize")
+  
+  // Metadata
+  description     String?
+  isActive        Boolean                @default(true) @map("is_active")
+  
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  
+  @@map("data_retention_policies")
+  @@index([type])
+}
+
+enum DataExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum DataExportFormat {
+  JSON
+  CSV
+  PDF
+  ZIP
+}
+
+model DataExport {
+  id             String            @id @default(cuid())
+  organizationId String            @map("organization_id")
+  userId         String            @map("user_id")
+  
+  // Export details
+  type           String            // full_data, audit_logs, usage_records, invoices
+  format         DataExportFormat
+  status         DataExportStatus  @default(PENDING)
+  
+  // Filters
+  filters        Json?             // Date range, specific resources, etc.
+  
+  // Result
+  fileUrl        String?           @map("file_url")
+  fileSizeBytes  BigInt?           @map("file_size_bytes")
+  recordCount    Int?              @map("record_count")
+  
+  // Lifecycle (GDPR: data export expires after 30 days)
+  expiresAt      DateTime          @map("expires_at")
+  downloadedAt   DateTime?         @map("downloaded_at")
+  
+  error          String?
+  
+  createdAt      DateTime          @default(now()) @map("created_at")
+  completedAt    DateTime?         @map("completed_at")
+  
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("data_exports")
+  @@index([organizationId])
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+enum AnonymizationAction {
+  HASH_EMAIL
+  REMOVE_NAME
+  REMOVE_IP
+  REMOVE_USER_AGENT
+  FULL_ANONYMIZATION
+}
+
+model AnonymizationLog {
+  id          String               @id @default(cuid())
+  
+  // Target
+  entityType  String               @map("entity_type") // user, audit_log, workflow_log
+  entityId    String               @map("entity_id")
+  
+  // Actions performed
+  actions     AnonymizationAction[]
+  
+  // Reason
+  reason      String               // gdpr_request, retention_policy, user_deletion
+  requestedBy String?              @map("requested_by") // user_id
+  
+  // Metadata
+  beforeHash  String?              @map("before_hash") // Hash of data before anonymization
+  afterHash   String?              @map("after_hash")  // Hash of data after anonymization
+  
+  createdAt   DateTime             @default(now()) @map("created_at")
+  
+  @@map("anonymization_logs")
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ============================================
+// SDK Extensions (Phase 10)
+// ============================================
+
+enum PluginType {
+  LLM_PROVIDER      // Custom LLM provider
+  VCS_PROVIDER      // Custom VCS (Git provider)
+  CI_PROVIDER       // Custom CI
+  PREVIEW_PROVIDER  // Custom preview app provider
+  QA_PROVIDER       // Custom QA/testing provider
+  POLICY_PROVIDER   // Custom OPA policies
+  WEBHOOK_HANDLER   // Custom webhook handler
+  NOTIFICATION      // Custom notification channel
+}
+
+enum PluginStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+model Plugin {
+  id              String        @id @default(cuid())
+  
+  // Plugin details
+  name            String
+  type            PluginType
+  version         String
+  
+  // Code/Package
+  packageName     String?       @map("package_name") // npm package or local path
+  entrypoint      String        // main file or function
+  
+  // Configuration
+  config          Json?
+  secrets         Json?         // Encrypted
+  
+  // Status
+  status          PluginStatus  @default(INACTIVE)
+  
+  // Metadata
+  description     String?
+  author          String?
+  repository      String?
+  
+  // Lifecycle
+  installedAt     DateTime      @default(now()) @map("installed_at")
+  lastLoadedAt    DateTime?     @map("last_loaded_at")
+  
+  // Relations
+  executions      PluginExecution[]
+  
+  @@map("plugins")
+  @@index([type])
+  @@index([status])
+}
+
+model PluginExecution {
+  id          String   @id @default(cuid())
+  pluginId    String   @map("plugin_id")
+  
+  // Execution details
+  operation   String   // ex: generateCode, deployPreview, checkPolicy
+  input       Json?
+  output      Json?
+  
+  // Status
+  success     Boolean
+  error       String?  @db.Text
+  duration    Int?     // in milliseconds
+  
+  // Context
+  workflowId  String?  @map("workflow_id")
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  plugin      Plugin   @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+  
+  @@map("plugin_executions")
+  @@index([pluginId])
+  @@index([workflowId])
+  @@index([createdAt])
+}
+

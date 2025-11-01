@@ -1,0 +1,47 @@
+{
+  "name": "devflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Universal DevOps orchestrator - Notion to Production automation",
+  "keywords": ["devops", "automation", "orchestrator", "temporal", "nestjs"],
+  "author": "DevFlow Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @devflow/api dev",
+    "dev:worker": "pnpm --filter @devflow/worker dev",
+    "build": "pnpm -r build",
+    "build:api": "pnpm --filter @devflow/api build",
+    "build:worker": "pnpm --filter @devflow/worker build",
+    "build:sdk": "pnpm --filter @devflow/sdk build",
+    "build:cli": "pnpm --filter @devflow/cli build",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yml,yaml}\"",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm -r test:e2e",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "db:migrate": "pnpm --filter @devflow/api db:migrate",
+    "db:seed": "pnpm --filter @devflow/api db:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3"
+  }
+}
+

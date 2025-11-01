@@ -1,0 +1,173 @@
+# DevFlow Project Configuration
+# Place this file at the root of your project as .devflow.yml
+
+version: '1.0'
+
+# Project metadata
+project:
+  name: my-awesome-app
+  description: Example application managed by DevFlow
+  repository: https://github.com/org/my-awesome-app
+  language: typescript # typescript, javascript, python, php, go, rust, etc.
+  framework: nextjs # nextjs, nestjs, django, laravel, express, etc.
+
+# Notion integration
+notion:
+  enabled: true
+  database_id: ${NOTION_DATABASE_ID}
+  # Map Notion properties to DevFlow fields
+  field_mapping:
+    title: Name
+    status: Status
+    priority: Priority
+    assignee: Assignee
+    epic: Epic
+    story_points: Story Points
+
+# VCS Configuration
+vcs:
+  provider: github # github, gitlab, bitbucket
+  base_branch: main
+  # Branch naming convention
+  branch_pattern: 'feature/{task-id}-{task-slug}'
+  # PR/MR template
+  pr_template: .github/pull_request_template.md
+  # Auto-assign reviewers
+  reviewers:
+    - team-lead
+    - senior-dev
+
+# Commands to execute at different stages
+commands:
+  # Install dependencies
+  install: pnpm install
+  
+  # Build the project
+  build: pnpm build
+  
+  # Run linter
+  lint: pnpm lint
+  
+  # Run unit tests
+  unit: pnpm test
+  
+  # Run e2e tests
+  e2e: pnpm test:e2e
+  
+  # Database migrations
+  migrate: pnpm db:migrate
+  
+  # Custom commands
+  custom:
+    typecheck: pnpm typecheck
+    security-scan: pnpm audit
+
+# CI/CD Integration
+ci:
+  provider: github-actions # github-actions, gitlab-ci, bitbucket-pipelines
+  # Path to CI config (DevFlow will only read, not modify)
+  config_path: .github/workflows/main.yml
+  # Artifact paths to check
+  artifacts:
+    coverage: coverage/coverage-summary.json
+    test_results: test-results/junit.xml
+    build_output: dist/
+
+# Code Agent Configuration
+code_agent:
+  provider: anthropic # anthropic, openai, cursor
+  model: claude-3-5-sonnet-20241022
+  # Prompt templates
+  prompts:
+    spec: |
+      Based on the following task from Notion:
+      Title: {title}
+      Description: {description}
+      
+      Generate a technical specification with:
+      1. Architecture decisions
+      2. Implementation steps
+      3. Testing strategy
+      4. Potential risks
+    
+    implementation: |
+      Implement the following specification:
+      {spec}
+      
+      Project structure:
+      {project_structure}
+      
+      Relevant files:
+      {relevant_files}
+
+# Quality Gates
+quality_gates:
+  # Block PR if any of these fail
+  required:
+    - lint
+    - unit
+    - build
+  # Optional checks (warnings only)
+  optional:
+    - e2e
+    - security-scan
+  # Coverage thresholds
+  coverage:
+    lines: 80
+    branches: 75
+    functions: 80
+    statements: 80
+
+# Notifications
+notifications:
+  # When to send notifications
+  events:
+    - workflow_started
+    - workflow_failed
+    - workflow_completed
+    - pr_created
+    - pr_merged
+    - tests_failed
+  # Notification channels
+  channels:
+    slack:
+      enabled: true
+      webhook_url: ${SLACK_WEBHOOK_URL}
+    discord:
+      enabled: false
+      webhook_url: ${DISCORD_WEBHOOK_URL}
+    email:
+      enabled: false
+      recipients:
+        - team@example.com
+
+# File patterns
+files:
+  # Files to watch for changes
+  watch:
+    - 'src/**/*.ts'
+    - 'src/**/*.tsx'
+    - 'tests/**/*.ts'
+  # Files to ignore
+  ignore:
+    - 'node_modules/**'
+    - 'dist/**'
+    - '*.log'
+    - '.env*'
+
+# Advanced settings
+advanced:
+  # Parallel execution
+  parallel: true
+  # Timeout for commands (seconds)
+  timeout: 1800
+  # Retry failed commands
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff: exponential
+  # Workspace isolation
+  workspace:
+    clean: true
+    path: /tmp/devflow-workspaces
+

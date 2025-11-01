@@ -1,0 +1,93 @@
+# Prometheus Alert Rules - Phase 5
+
+groups:
+  - name: devflow_sla_alerts
+    interval: 30s
+    rules:
+      # Workflow Duration SLA
+      - alert: WorkflowDurationSLA
+        expr: devflow_workflow_duration_seconds > 3600
+        for: 1m
+        labels:
+          severity: warning
+          sla: workflow_duration
+        annotations:
+          summary: "Workflow duration exceeds SLA"
+          description: "Workflow {{ $labels.project_id }} took {{ $value }}s (threshold: 3600s)"
+
+      # CI Duration SLA
+      - alert: CIDurationSLA
+        expr: devflow_ci_duration_seconds > 1800
+        for: 1m
+        labels:
+          severity: warning
+          sla: ci_duration
+        annotations:
+          summary: "CI duration exceeds SLA"
+          description: "CI for {{ $labels.project_id }} took {{ $value }}s (threshold: 1800s)"
+
+      # LLM Daily Cost SLA
+      - alert: LLMDailyCostSLA
+        expr: devflow_llm_cost_usd{period="day"} > 50
+        for: 5m
+        labels:
+          severity: critical
+          sla: llm_daily_cost
+        annotations:
+          summary: "Daily LLM cost exceeds budget"
+          description: "Provider {{ $labels.provider }} cost: ${{ $value }} (threshold: $50)"
+
+      # Budget Remaining Low
+      - alert: BudgetRemainingLow
+        expr: devflow_budget_remaining_percent < 10
+        for: 5m
+        labels:
+          severity: warning
+          sla: budget_remaining
+        annotations:
+          summary: "Budget remaining is low"
+          description: "{{ $labels.quota_type }} remaining: {{ $value }}%"
+
+  - name: devflow_health_alerts
+    interval: 30s
+    rules:
+      # High Workflow Failure Rate
+      - alert: HighWorkflowFailureRate
+        expr: (rate(devflow_workflow_executions_total{status="failed"}[5m]) / rate(devflow_workflow_executions_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High workflow failure rate"
+          description: "Failure rate: {{ $value | humanizePercentage }}"
+
+      # Too Many Active Workflows
+      - alert: TooManyActiveWorkflows
+        expr: devflow_active_workflows > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many active workflows"
+          description: "Active workflows: {{ $value }}"
+
+      # Security Issues Detected
+      - alert: SecurityIssuesDetected
+        expr: increase(devflow_security_issues_total{severity="critical"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical security issues detected"
+          description: "{{ $value }} critical issues in last 5 minutes"
+
+      # Policy Violations
+      - alert: PolicyViolations
+        expr: increase(devflow_policy_violations_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of policy violations"
+          description: "{{ $value }} violations in last 5 minutes"
+

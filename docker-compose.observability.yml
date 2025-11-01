@@ -1,0 +1,114 @@
+# Docker Compose - Observability Stack
+# Prometheus, Grafana, OTEL Collector, Tempo (Jaeger)
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Prometheus - Metrics Collection
+  # ============================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: devflow-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - devflow
+    restart: unless-stopped
+
+  # ============================================
+  # Grafana - Visualization
+  # ============================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: devflow-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    networks:
+      - devflow
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - tempo
+
+  # ============================================
+  # OTEL Collector - Trace & Metric Collection
+  # ============================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: devflow-otel-collector
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Prometheus metrics (collector itself)
+      - "8889:8889"   # Prometheus exporter
+    volumes:
+      - ./config/otel-collector/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    networks:
+      - devflow
+    restart: unless-stopped
+    depends_on:
+      - tempo
+
+  # ============================================
+  # Tempo - Distributed Tracing Backend
+  # ============================================
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: devflow-tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4320:4317"   # OTLP gRPC (direct)
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./config/tempo/tempo.yml:/etc/tempo.yaml
+      - tempo-data:/tmp/tempo
+    networks:
+      - devflow
+    restart: unless-stopped
+
+  # ============================================
+  # Alertmanager - Alert Routing
+  # ============================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: devflow-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - devflow
+    restart: unless-stopped
+
+networks:
+  devflow:
+    external: true
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  tempo-data:
+

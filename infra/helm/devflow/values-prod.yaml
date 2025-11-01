@@ -1,0 +1,360 @@
+# DevFlow Helm Chart - Production Values
+# Phase 6: Kubernetes Deployment - Production
+
+global:
+  environment: production
+  domain: devflow.io  # Your production domain
+  
+  imageRegistry: ghcr.io  # Or your registry
+  imagePullSecrets:
+    - name: ghcr-secret
+  
+  multiTenant:
+    enabled: true
+    defaultOrganization: "acme-corp"
+  
+  # Production database (managed)
+  database:
+    host: devflow-db.cxxxxx.us-east-1.rds.amazonaws.com
+    port: 5432
+    database: devflow_production
+    existingSecret: devflow-database-prod
+  
+  # Production Redis (managed)
+  redis:
+    host: devflow-redis.xxxxx.cache.amazonaws.com
+    port: 6379
+    existingSecret: devflow-redis-prod
+  
+  # Temporal Cloud
+  temporal:
+    host: "prod.a2dd6.tmprl.cloud"
+    port: 7233
+    namespace: devflow-prod
+    existingSecret: devflow-temporal-prod
+
+# ============================================
+# API - Production
+# ============================================
+api:
+  replicaCount: 5  # Higher for production
+  
+  image:
+    repository: ghcr.io/your-org/devflow-api
+    pullPolicy: Always
+    tag: "1.6.0"  # Override with CI/CD
+  
+  service:
+    type: ClusterIP
+    port: 3000
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+  
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "1000"
+      nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+      nginx.ingress.kubernetes.io/cors-allow-origin: "https://app.devflow.io"
+    hosts:
+      - host: api.devflow.io
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: devflow-api-tls-prod
+        hosts:
+          - api.devflow.io
+  
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+    PORT: "3000"
+    ENABLE_SWAGGER: "false"
+    ENABLE_METRICS: "true"
+    ENABLE_TRACING: "true"
+    
+    # Production-specific
+    CORS_ORIGIN: "https://app.devflow.io"
+    RATE_LIMIT_MAX: "100"
+    RATE_LIMIT_WINDOW: "60000"
+  
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 50
+    targetMemoryUtilizationPercentage: 70
+    
+    # Advanced metrics
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Percent
+            value: 50
+            periodSeconds: 60
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 15
+          - type: Pods
+            value: 4
+            periodSeconds: 15
+        selectPolicy: Max
+  
+  # Production node selector (dedicated nodes)
+  nodeSelector:
+    workload: api
+  
+  # Tolerations for dedicated nodes
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "api"
+      effect: "NoSchedule"
+  
+  # Strong anti-affinity for HA
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - devflow-api
+          topologyKey: kubernetes.io/hostname
+
+# ============================================
+# Worker - Production
+# ============================================
+worker:
+  replicaCount: 10  # Higher for production workload
+  
+  image:
+    repository: ghcr.io/your-org/devflow-worker
+    pullPolicy: Always
+    tag: "1.6.0"
+  
+  env:
+    NODE_ENV: production
+    LOG_LEVEL: info
+    
+    TEMPORAL_TASK_QUEUE: devflow-tasks
+    TEMPORAL_MAX_CONCURRENT_ACTIVITIES: "20"
+    TEMPORAL_MAX_CONCURRENT_WORKFLOWS: "10"
+    
+    METRICS_PORT: "9464"
+  
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 10
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 75
+    
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600  # 10 min
+        policies:
+          - type: Percent
+            value: 25
+            periodSeconds: 120
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 200
+            periodSeconds: 30
+          - type: Pods
+            value: 10
+            periodSeconds: 30
+        selectPolicy: Max
+  
+  nodeSelector:
+    workload: worker
+  
+  tolerations:
+    - key: "workload"
+      operator: "Equal"
+      value: "worker"
+      effect: "NoSchedule"
+  
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - devflow-worker
+            topologyKey: kubernetes.io/hostname
+
+# ============================================
+# Temporal (Cloud - no self-hosted in prod)
+# ============================================
+temporal:
+  enabled: false  # Using Temporal Cloud
+
+# ============================================
+# Observability (Enabled in Production)
+# ============================================
+observability:
+  prometheus:
+    enabled: true
+    
+    server:
+      persistentVolume:
+        enabled: true
+        size: 200Gi
+        storageClass: gp3
+      
+      retention: "90d"
+      
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 4Gi
+        limits:
+          cpu: 2000m
+          memory: 8Gi
+      
+      ingress:
+        enabled: true
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+          nginx.ingress.kubernetes.io/auth-type: basic
+          nginx.ingress.kubernetes.io/auth-secret: prometheus-auth
+        hosts:
+          - prometheus.devflow.io
+        tls:
+          - secretName: prometheus-tls-prod
+            hosts:
+              - prometheus.devflow.io
+  
+  grafana:
+    enabled: true
+    
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: gp3
+    
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - grafana.devflow.io
+      tls:
+        - secretName: grafana-tls-prod
+          hosts:
+            - grafana.devflow.io
+  
+  otelCollector:
+    enabled: true
+    
+    mode: deployment
+    replicaCount: 3
+    
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# ============================================
+# Pod Disruption Budget (Production)
+# ============================================
+podDisruptionBudget:
+  api:
+    enabled: true
+    minAvailable: 3  # Always keep 3 API pods
+  
+  worker:
+    enabled: true
+    minAvailable: 5  # Always keep 5 workers
+
+# ============================================
+# Network Policy (Enabled in Production)
+# ============================================
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  
+  # Allow ingress from ingress controller
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: ingress-nginx
+      ports:
+      - protocol: TCP
+        port: 3000
+  
+  # Allow egress to necessary services
+  egress:
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 5432  # Postgres
+      - protocol: TCP
+        port: 6379  # Redis
+      - protocol: TCP
+        port: 7233  # Temporal
+      - protocol: TCP
+        port: 443   # HTTPS
+
+# ============================================
+# Secrets Management (External Secrets)
+# ============================================
+secrets:
+  externalSecrets:
+    enabled: true
+    backend: "doppler"
+    
+    doppler:
+      project: devflow
+      config: prd
+      secretName: doppler-token
+  
+  createSecrets: false  # Don't create manual secrets in prod
+

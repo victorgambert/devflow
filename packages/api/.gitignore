@@ -1,0 +1,17 @@
+# Prisma
+prisma/migrations/
+*.db
+*.db-journal
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
