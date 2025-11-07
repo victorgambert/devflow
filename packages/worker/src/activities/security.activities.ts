@@ -2,15 +2,15 @@
  * Security Activities - Phase 4: Security Checks & Policy Validation
  */
 
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 import {
   PolicyGuard,
   SecurityScanner,
   MergePolicyManager,
   MergePolicy,
   auditLogger,
-} from '@devflow/sdk';
-import { ProjectAdapter } from '@devflow/sdk';
+} from '@soma-squad-ai/sdk';
+import { ProjectAdapter } from '@soma-squad-ai/sdk';
 
 const logger = createLogger('SecurityActivities');
 
@@ -273,4 +273,6 @@ export async function getAuditSummary(input: GetAuditSummaryInput): Promise<GetA
 
   return summary;
 }
+
+
 

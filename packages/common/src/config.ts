@@ -20,7 +20,7 @@ export function loadConfig(): AppConfig {
   return {
     port: parseInt(process.env.PORT || '3000', 10),
     database: {
-      url: process.env.DATABASE_URL || 'postgresql://localhost:5432/devflow',
+      url: process.env.DATABASE_URL || 'postgresql://localhost:5432/soma-squad-ai',
     },
     temporal: {
       address: process.env.TEMPORAL_ADDRESS || 'localhost:7233',

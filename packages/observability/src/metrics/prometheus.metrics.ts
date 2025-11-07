@@ -14,8 +14,8 @@ export const metricsRegistry = new Registry();
 // Collect default metrics (CPU, memory, etc.)
 collectDefaultMetrics({
   register: metricsRegistry,
-  prefix: 'devflow_',
-  labels: { app: 'devflow' },
+  prefix: 'soma_squad_ai_',
+  labels: { app: 'soma_squad_ai' },
 });
 
 // ============================================
@@ -26,7 +26,7 @@ collectDefaultMetrics({
  * Tickets total by state
  */
 export const ticketsTotal = new Counter({
-  name: 'devflow_tickets_total',
+  name: 'soma_squad_ai_tickets_total',
   help: 'Total number of tickets processed by state',
   labelNames: ['state', 'project_id'],
   registers: [metricsRegistry],
@@ -36,7 +36,7 @@ export const ticketsTotal = new Counter({
  * Agent commits total by provider
  */
 export const agentCommitsTotal = new Counter({
-  name: 'devflow_agent_commits_total',
+  name: 'soma_squad_ai_agent_commits_total',
   help: 'Total number of commits made by agents',
   labelNames: ['provider', 'project_id', 'phase'],
   registers: [metricsRegistry],
@@ -46,7 +46,7 @@ export const agentCommitsTotal = new Counter({
  * CI checks total by status
  */
 export const ciChecksTotal = new Counter({
-  name: 'devflow_ci_checks_total',
+  name: 'soma_squad_ai_ci_checks_total',
   help: 'Total number of CI checks by status',
   labelNames: ['status', 'project_id', 'check_type'],
   registers: [metricsRegistry],
@@ -56,7 +56,7 @@ export const ciChecksTotal = new Counter({
  * Alerts total by type
  */
 export const alertsTotal = new Counter({
-  name: 'devflow_alerts_total',
+  name: 'soma_squad_ai_alerts_total',
   help: 'Total number of alerts triggered',
   labelNames: ['type', 'severity', 'project_id'],
   registers: [metricsRegistry],
@@ -66,7 +66,7 @@ export const alertsTotal = new Counter({
  * Workflow executions total
  */
 export const workflowExecutionsTotal = new Counter({
-  name: 'devflow_workflow_executions_total',
+  name: 'soma_squad_ai_workflow_executions_total',
   help: 'Total number of workflow executions',
   labelNames: ['status', 'project_id'],
   registers: [metricsRegistry],
@@ -76,7 +76,7 @@ export const workflowExecutionsTotal = new Counter({
  * Policy violations total
  */
 export const policyViolationsTotal = new Counter({
-  name: 'devflow_policy_violations_total',
+  name: 'soma_squad_ai_policy_violations_total',
   help: 'Total number of policy violations',
   labelNames: ['type', 'severity', 'project_id'],
   registers: [metricsRegistry],
@@ -86,7 +86,7 @@ export const policyViolationsTotal = new Counter({
  * Security issues total
  */
 export const securityIssuesTotal = new Counter({
-  name: 'devflow_security_issues_total',
+  name: 'soma_squad_ai_security_issues_total',
   help: 'Total number of security issues detected',
   labelNames: ['type', 'severity', 'project_id'],
   registers: [metricsRegistry],
@@ -96,7 +96,7 @@ export const securityIssuesTotal = new Counter({
  * LLM API calls total
  */
 export const llmApiCallsTotal = new Counter({
-  name: 'devflow_llm_api_calls_total',
+  name: 'soma_squad_ai_llm_api_calls_total',
   help: 'Total number of LLM API calls',
   labelNames: ['provider', 'model', 'operation'],
   registers: [metricsRegistry],
@@ -106,7 +106,7 @@ export const llmApiCallsTotal = new Counter({
  * LLM tokens total
  */
 export const llmTokensTotal = new Counter({
-  name: 'devflow_llm_tokens_total',
+  name: 'soma_squad_ai_llm_tokens_total',
   help: 'Total number of LLM tokens used',
   labelNames: ['provider', 'model', 'type'], // type: input, output
   registers: [metricsRegistry],
@@ -120,7 +120,7 @@ export const llmTokensTotal = new Counter({
  * State duration in seconds
  */
 export const stateDuration = new Histogram({
-  name: 'devflow_state_duration_seconds',
+  name: 'soma_squad_ai_state_duration_seconds',
   help: 'Duration of time spent in each state',
   labelNames: ['state', 'project_id'],
   buckets: [1, 5, 10, 30, 60, 120, 300, 600, 1800, 3600], // 1s to 1h
@@ -131,7 +131,7 @@ export const stateDuration = new Histogram({
  * Workflow duration (Spec → Done)
  */
 export const workflowDuration = new Histogram({
-  name: 'devflow_workflow_duration_seconds',
+  name: 'soma_squad_ai_workflow_duration_seconds',
   help: 'Total duration of workflow from start to completion',
   labelNames: ['project_id', 'status'],
   buckets: [60, 300, 600, 1200, 1800, 3600, 7200, 14400], // 1min to 4h
@@ -142,7 +142,7 @@ export const workflowDuration = new Histogram({
  * CI duration
  */
 export const ciDuration = new Histogram({
-  name: 'devflow_ci_duration_seconds',
+  name: 'soma_squad_ai_ci_duration_seconds',
   help: 'Duration of CI checks',
   labelNames: ['project_id', 'status'],
   buckets: [10, 30, 60, 120, 300, 600, 900, 1800], // 10s to 30min
@@ -153,7 +153,7 @@ export const ciDuration = new Histogram({
  * Agent latency by phase
  */
 export const agentLatency = new Histogram({
-  name: 'devflow_agent_latency_seconds',
+  name: 'soma_squad_ai_agent_latency_seconds',
   help: 'Latency of agent operations',
   labelNames: ['phase', 'provider', 'model'],
   buckets: [1, 5, 10, 20, 30, 60, 120, 180], // 1s to 3min
@@ -164,7 +164,7 @@ export const agentLatency = new Histogram({
  * API request duration
  */
 export const apiRequestDuration = new Histogram({
-  name: 'devflow_api_request_duration_seconds',
+  name: 'soma_squad_ai_api_request_duration_seconds',
   help: 'Duration of API requests',
   labelNames: ['method', 'route', 'status_code'],
   buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10],
@@ -175,7 +175,7 @@ export const apiRequestDuration = new Histogram({
  * Database query duration
  */
 export const dbQueryDuration = new Histogram({
-  name: 'devflow_db_query_duration_seconds',
+  name: 'soma_squad_ai_db_query_duration_seconds',
   help: 'Duration of database queries',
   labelNames: ['operation', 'table'],
   buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 2],
@@ -190,7 +190,7 @@ export const dbQueryDuration = new Histogram({
  * Tickets in progress by state
  */
 export const ticketsInProgress = new Gauge({
-  name: 'devflow_tickets_in_progress',
+  name: 'soma_squad_ai_tickets_in_progress',
   help: 'Number of tickets currently in each state',
   labelNames: ['state', 'project_id'],
   registers: [metricsRegistry],
@@ -200,7 +200,7 @@ export const ticketsInProgress = new Gauge({
  * LLM cost (current estimated)
  */
 export const llmCostUsd = new Gauge({
-  name: 'devflow_llm_cost_usd',
+  name: 'soma_squad_ai_llm_cost_usd',
   help: 'Current estimated LLM cost in USD',
   labelNames: ['provider', 'period'], // period: hour, day, month
   registers: [metricsRegistry],
@@ -210,7 +210,7 @@ export const llmCostUsd = new Gauge({
  * Retry pending count
  */
 export const retryPending = new Gauge({
-  name: 'devflow_retry_pending',
+  name: 'soma_squad_ai_retry_pending',
   help: 'Number of workflows/tasks pending retry',
   labelNames: ['ticket_id', 'project_id', 'reason'],
   registers: [metricsRegistry],
@@ -220,7 +220,7 @@ export const retryPending = new Gauge({
  * Active workflows
  */
 export const activeWorkflows = new Gauge({
-  name: 'devflow_active_workflows',
+  name: 'soma_squad_ai_active_workflows',
   help: 'Number of currently active workflows',
   labelNames: ['project_id'],
   registers: [metricsRegistry],
@@ -230,7 +230,7 @@ export const activeWorkflows = new Gauge({
  * Queue size
  */
 export const queueSize = new Gauge({
-  name: 'devflow_queue_size',
+  name: 'soma_squad_ai_queue_size',
   help: 'Number of items in processing queue',
   labelNames: ['queue_name', 'project_id'],
   registers: [metricsRegistry],
@@ -240,7 +240,7 @@ export const queueSize = new Gauge({
  * Budget remaining (percentage)
  */
 export const budgetRemaining = new Gauge({
-  name: 'devflow_budget_remaining_percent',
+  name: 'soma_squad_ai_budget_remaining_percent',
   help: 'Percentage of budget remaining',
   labelNames: ['quota_type', 'project_id'], // quota_type: tokens, cost, calls
   registers: [metricsRegistry],
@@ -250,7 +250,7 @@ export const budgetRemaining = new Gauge({
  * SLA compliance (percentage)
  */
 export const slaCompliance = new Gauge({
-  name: 'devflow_sla_compliance_percent',
+  name: 'soma_squad_ai_sla_compliance_percent',
   help: 'SLA compliance percentage',
   labelNames: ['sla_name', 'project_id'],
   registers: [metricsRegistry],
@@ -399,4 +399,6 @@ export async function getMetricsText(): Promise<string> {
 export function resetMetrics(): void {
   metricsRegistry.resetMetrics();
 }
+
+
 

@@ -1,7 +1,7 @@
 {
-  "name": "@devflow/api",
+  "name": "@soma-squad-ai/api",
   "version": "1.0.0",
-  "description": "DevFlow REST API built with NestJS",
+  "description": "Soma Squad AI REST API built with NestJS",
   "main": "dist/main.js",
   "scripts": {
     "build": "nest build",
@@ -24,12 +24,12 @@
     "db:push": "prisma db push",
     "db:reset": "prisma migrate reset"
   },
-  "keywords": ["devflow", "api", "nestjs"],
-  "author": "DevFlow Team",
+  "keywords": ["soma-squad-ai", "api", "nestjs", "ai"],
+  "author": "Soma Squad AI Team",
   "license": "MIT",
   "dependencies": {
-    "@devflow/common": "workspace:*",
-    "@devflow/sdk": "workspace:*",
+    "@soma-squad-ai/common": "workspace:*",
+    "@soma-squad-ai/sdk": "workspace:*",
     "@nestjs/common": "^10.3.0",
     "@nestjs/core": "^10.3.0",
     "@nestjs/platform-express": "^10.3.0",

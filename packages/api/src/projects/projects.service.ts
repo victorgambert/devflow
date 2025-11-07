@@ -2,8 +2,9 @@
  * Projects Service - Refactored with Prisma
  */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { createLogger } from '@devflow/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { createLogger } from '@soma-squad-ai/common';
+import { parseRepositoryUrl, GitHubProvider, createVCSDriver } from '@soma-squad-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto, UpdateProjectDto } from './dto';
 
@@ -140,5 +141,71 @@ export class ProjectsService {
         }, {} as Record<string, number>),
       },
     };
+  }
+
+  /**
+   * Link a GitHub repository to a project
+   */
+  async linkRepository(id: string, repositoryUrl: string) {
+    this.logger.info('Linking repository to project', { id, repositoryUrl });
+
+    // Check if project exists
+    const project = await this.findOne(id);
+
+    try {
+      // Parse repository URL to extract owner, repo, and provider
+      const repoInfo = parseRepositoryUrl(repositoryUrl);
+      this.logger.info('Repository info extracted', repoInfo);
+
+      // Get GitHub token
+      const token = process.env.GITHUB_TOKEN || process.env.GITHUB_APP_TOKEN;
+      if (!token) {
+        throw new BadRequestException('GitHub token not configured (GITHUB_TOKEN or GITHUB_APP_TOKEN)');
+      }
+
+      // Test repository access
+      if (repoInfo.provider === 'github') {
+        const github = new GitHubProvider(token);
+        try {
+          await github.getRepository(repoInfo.owner, repoInfo.repo);
+          this.logger.info('Repository access verified', { owner: repoInfo.owner, repo: repoInfo.repo });
+        } catch (error) {
+          this.logger.error('Cannot access repository', error as Error);
+          throw new BadRequestException(
+            `Cannot access repository ${repoInfo.owner}/${repoInfo.repo}. Check token permissions.`
+          );
+        }
+      }
+
+      // Update project with repository information
+      const config = (project.config as any) || {};
+
+      return this.prisma.project.update({
+        where: { id },
+        data: {
+          repository: repositoryUrl,
+          config: {
+            ...config,
+            vcs: {
+              ...config.vcs,
+              owner: repoInfo.owner,
+              repo: repoInfo.repo,
+              provider: repoInfo.provider,
+            },
+            project: {
+              ...config.project,
+              owner: repoInfo.owner,
+              repo: repoInfo.repo,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      this.logger.error('Failed to link repository', error as Error);
+      throw new BadRequestException(`Invalid repository URL or cannot access repository: ${(error as Error).message}`);
+    }
   }
 }

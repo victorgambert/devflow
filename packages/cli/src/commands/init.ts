@@ -37,7 +37,7 @@ export default class Init extends Command {
     }),
     force: Flags.boolean({
       char: 'f',
-      description: 'Overwrite existing .devflow.yml',
+      description: 'Overwrite existing .soma-squad-ai.yml',
       default: false,
     }),
   };
@@ -48,12 +48,12 @@ export default class Init extends Command {
     this.log(chalk.cyan.bold('🚀 DevFlow Initialization'));
     this.log();
 
-    // Check if .devflow.yml already exists
-    const configPath = path.join(process.cwd(), '.devflow.yml');
+    // Check if .soma-squad-ai.yml already exists
+    const configPath = path.join(process.cwd(), '.soma-squad-ai.yml');
     const exists = await this.fileExists(configPath);
 
     if (exists && !flags.force) {
-      this.log(chalk.yellow('⚠️  .devflow.yml already exists!'));
+      this.log(chalk.yellow('⚠️  .soma-squad-ai.yml already exists!'));
       const { overwrite } = await inquirer.prompt([
         {
           type: 'confirm',
@@ -78,7 +78,7 @@ export default class Init extends Command {
     const config = await this.generateConfig(stack, flags.monorepo);
 
     // Show preview
-    this.log(chalk.cyan('📄 Preview of .devflow.yml:'));
+    this.log(chalk.cyan('📄 Preview of .soma-squad-ai.yml:'));
     this.log(chalk.gray('─'.repeat(60)));
     this.log(yaml.stringify(config));
     this.log(chalk.gray('─'.repeat(60)));
@@ -94,7 +94,7 @@ export default class Init extends Command {
       {
         type: 'confirm',
         name: 'confirm',
-        message: 'Create .devflow.yml with this configuration?',
+        message: 'Create .soma-squad-ai.yml with this configuration?',
         default: true,
       },
     ]);
@@ -104,13 +104,13 @@ export default class Init extends Command {
       return;
     }
 
-    // Create .devflow.yml
-    const spinner = ora('Creating .devflow.yml...').start();
+    // Create .soma-squad-ai.yml
+    const spinner = ora('Creating .soma-squad-ai.yml...').start();
     try {
       await fs.writeFile(configPath, yaml.stringify(config), 'utf-8');
-      spinner.succeed(chalk.green('✓ Created .devflow.yml'));
+      spinner.succeed(chalk.green('✓ Created .soma-squad-ai.yml'));
     } catch (error) {
-      spinner.fail(chalk.red('✗ Failed to create .devflow.yml'));
+      spinner.fail(chalk.red('✗ Failed to create .soma-squad-ai.yml'));
       throw error;
     }
 
@@ -122,10 +122,10 @@ export default class Init extends Command {
     this.log(chalk.green.bold('✓ Initialization complete!'));
     this.log();
     this.log(chalk.cyan('Next steps:'));
-    this.log(chalk.white('  1. Review and customize .devflow.yml'));
-    this.log(chalk.white('  2. Run: devflow connect notion'));
-    this.log(chalk.white('  3. Run: devflow connect github'));
-    this.log(chalk.white('  4. Run: devflow doctor'));
+    this.log(chalk.white('  1. Review and customize .soma-squad-ai.yml'));
+    this.log(chalk.white('  2. Run: soma-squad-ai connect notion'));
+    this.log(chalk.white('  3. Run: soma-squad-ai connect github'));
+    this.log(chalk.white('  4. Run: soma-squad-ai doctor'));
     this.log();
   }
 

@@ -4,7 +4,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { Connection, Client } from '@temporalio/client';
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 import { StartWorkflowDto } from './dto';
 
 @Injectable()
@@ -36,9 +36,11 @@ export class WorkflowsService {
       throw new Error('Temporal client not initialized');
     }
 
-    const workflowId = `devflow-${dto.taskId}-${Date.now()}`;
+    // Determine workflow type (default to full devflow workflow)
+    const workflowType = dto.workflowType || 'somaSquadAIWorkflow';
+    const workflowId = `${workflowType}-${dto.taskId}-${Date.now()}`;
 
-    const handle = await this.client.workflow.start('devflowWorkflow', {
+    const handle = await this.client.workflow.start(workflowType, {
       taskQueue: process.env.TEMPORAL_TASK_QUEUE || 'devflow',
       workflowId,
       args: [
@@ -54,6 +56,20 @@ export class WorkflowsService {
       workflowId: handle.workflowId,
       runId: handle.firstExecutionRunId,
     };
+  }
+
+  /**
+   * Start a spec generation workflow
+   */
+  async startSpecGeneration(taskId: string, projectId: string, userId?: string) {
+    this.logger.info('Starting spec generation workflow', { taskId, projectId });
+
+    return this.start({
+      taskId,
+      projectId,
+      userId,
+      workflowType: 'specGenerationWorkflow',
+    });
   }
 
   async getStatus(workflowId: string) {

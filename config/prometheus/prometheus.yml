@@ -4,7 +4,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: 'devflow'
+    cluster: 'soma-squad-ai'
     environment: 'production'
 
 # Alertmanager configuration
@@ -19,15 +19,15 @@ rule_files:
 
 # Scrape configs
 scrape_configs:
-  # DevFlow API
-  - job_name: 'devflow-api'
+  # Soma Squad AI API
+  - job_name: 'soma-squad-ai-api'
     static_configs:
       - targets: ['host.docker.internal:3000']
     metrics_path: '/metrics'
     scrape_interval: 10s
 
-  # DevFlow Worker
-  - job_name: 'devflow-worker'
+  # Soma Squad AI Worker
+  - job_name: 'soma-squad-ai-worker'
     static_configs:
       - targets: ['host.docker.internal:9464']
     metrics_path: '/metrics'
@@ -43,4 +43,6 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
+
+
 

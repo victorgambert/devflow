@@ -3,9 +3,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'DevFlow Dashboards'
+  - name: 'Soma Squad AI Dashboards'
     orgId: 1
-    folder: 'DevFlow'
+    folder: 'Soma Squad AI'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30
@@ -13,4 +13,6 @@ providers:
     options:
       path: /etc/grafana/provisioning/dashboards
       foldersFromFilesStructure: true
+
+
 

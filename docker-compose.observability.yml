@@ -9,7 +9,7 @@ services:
   # ============================================
   prometheus:
     image: prom/prometheus:v2.48.1
-    container_name: devflow-prometheus
+    container_name: soma-squad-ai-prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -23,7 +23,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     networks:
-      - devflow
+      - soma-squad-ai
     restart: unless-stopped
 
   # ============================================
@@ -31,7 +31,7 @@ services:
   # ============================================
   grafana:
     image: grafana/grafana:10.2.3
-    container_name: devflow-grafana
+    container_name: soma-squad-ai-grafana
     ports:
       - "3001:3000"
     environment:
@@ -43,7 +43,7 @@ services:
       - ./config/grafana/datasources:/etc/grafana/provisioning/datasources
       - grafana-data:/var/lib/grafana
     networks:
-      - devflow
+      - soma-squad-ai
     restart: unless-stopped
     depends_on:
       - prometheus
@@ -54,7 +54,7 @@ services:
   # ============================================
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
-    container_name: devflow-otel-collector
+    container_name: soma-squad-ai-otel-collector
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
@@ -64,7 +64,7 @@ services:
       - ./config/otel-collector/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     networks:
-      - devflow
+      - soma-squad-ai
     restart: unless-stopped
     depends_on:
       - tempo
@@ -74,7 +74,7 @@ services:
   # ============================================
   tempo:
     image: grafana/tempo:2.3.1
-    container_name: devflow-tempo
+    container_name: soma-squad-ai-tempo
     ports:
       - "3200:3200"   # Tempo HTTP
       - "4320:4317"   # OTLP gRPC (direct)
@@ -83,7 +83,7 @@ services:
       - ./config/tempo/tempo.yml:/etc/tempo.yaml
       - tempo-data:/tmp/tempo
     networks:
-      - devflow
+      - soma-squad-ai
     restart: unless-stopped
 
   # ============================================
@@ -91,7 +91,7 @@ services:
   # ============================================
   alertmanager:
     image: prom/alertmanager:v0.26.0
-    container_name: devflow-alertmanager
+    container_name: soma-squad-ai-alertmanager
     ports:
       - "9093:9093"
     volumes:
@@ -100,15 +100,17 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     networks:
-      - devflow
+      - soma-squad-ai
     restart: unless-stopped
 
 networks:
-  devflow:
+  soma-squad-ai:
     external: true
 
 volumes:
   prometheus-data:
   grafana-data:
   tempo-data:
+
+
 

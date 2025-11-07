@@ -1,5 +1,5 @@
 {
-  "name": "@devflow/observability",
+  "name": "@soma-squad-ai/observability",
   "version": "1.0.0",
   "description": "Observability module with Prometheus, OpenTelemetry, and structured logging",
   "main": "dist/index.js",
@@ -15,11 +15,11 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
-  "keywords": ["devflow", "observability", "prometheus", "opentelemetry", "metrics", "tracing"],
-  "author": "DevFlow Team",
+  "keywords": ["soma-squad-ai", "observability", "prometheus", "opentelemetry", "metrics", "tracing", "ai"],
+  "author": "Soma Squad AI Team",
   "license": "MIT",
   "dependencies": {
-    "@devflow/common": "workspace:*",
+    "@soma-squad-ai/common": "workspace:*",
     "prom-client": "^15.1.0",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/sdk-node": "^0.45.1",
@@ -39,4 +39,6 @@
     "typescript": "^5.3.3"
   }
 }
+
+
 

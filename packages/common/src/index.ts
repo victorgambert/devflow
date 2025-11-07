@@ -12,8 +12,10 @@ export * from './errors';
 export * from './config';
 
 // Types
-export * from './types/workflow.types';
-export * from './types/agent.types';
+export * from './types';
+
+// Utils
+export * from './utils';
 
 // Constants
-export const DEVFLOW_CONFIG_FILE = '.devflow.yml';
+export const DEVFLOW_CONFIG_FILE = '.soma-squad-ai.yml';

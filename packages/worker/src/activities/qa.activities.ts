@@ -2,8 +2,8 @@
  * QA Testing Activities - Phase 3 Enhanced
  */
 
-import { createLogger } from '@devflow/common';
-import { ProjectAdapter, createCodeAgentDriver } from '@devflow/sdk';
+import { createLogger } from '@soma-squad-ai/common';
+import { ProjectAdapter, createCodeAgentDriver } from '@soma-squad-ai/sdk';
 
 const logger = createLogger('QAActivities');
 
@@ -44,7 +44,7 @@ export async function generateTests(input: GenerateTestsInput): Promise<Generate
     const agent = createCodeAgentDriver({
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY || '',
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-0',
     });
 
     // Generate tests

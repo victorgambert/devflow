@@ -3,7 +3,7 @@
  * Determines if PR can be automatically merged based on rules
  */
 
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 import { auditLogger, AuditEventType } from './audit.logger';
 import { PolicyCheckResult } from './policy.guard';
 

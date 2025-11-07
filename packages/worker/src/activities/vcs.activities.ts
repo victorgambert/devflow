@@ -2,8 +2,9 @@
  * VCS Activities
  */
 
-import { createLogger } from '@devflow/common';
-import { createVCSDriver } from '@devflow/sdk';
+import { createLogger } from '@soma-squad-ai/common';
+import { createVCSDriver } from '@soma-squad-ai/sdk';
+import { getProjectRepositoryConfig } from './codebase.activities';
 
 const logger = createLogger('VCSActivities');
 
@@ -16,13 +17,15 @@ export interface CreateBranchInput {
 export async function createBranch(input: CreateBranchInput): Promise<void> {
   logger.info('Creating branch', input);
 
+  // Get repository config from project
+  const repoConfig = await getProjectRepositoryConfig(input.projectId);
+
   const vcs = createVCSDriver({
-    provider: 'github',
+    provider: repoConfig.provider as any,
     token: process.env.GITHUB_TOKEN || '',
   });
 
-  // TODO: Get owner/repo from project config
-  await vcs.createBranch('owner', 'repo', {
+  await vcs.createBranch(repoConfig.owner, repoConfig.repo, {
     name: input.branchName,
     from: input.baseBranch,
   });
@@ -38,12 +41,15 @@ export interface CommitFilesInput {
 export async function commitFiles(input: CommitFilesInput): Promise<void> {
   logger.info('Committing files', { ...input, filesCount: input.files.length });
 
+  // Get repository config from project
+  const repoConfig = await getProjectRepositoryConfig(input.projectId);
+
   const vcs = createVCSDriver({
-    provider: 'github',
+    provider: repoConfig.provider as any,
     token: process.env.GITHUB_TOKEN || '',
   });
 
-  await vcs.commitFiles('owner', 'repo', {
+  await vcs.commitFiles(repoConfig.owner, repoConfig.repo, {
     branch: input.branchName,
     message: input.message,
     files: input.files,
@@ -67,12 +73,15 @@ export async function createPullRequest(
 ): Promise<CreatePullRequestOutput> {
   logger.info('Creating pull request', input);
 
+  // Get repository config from project
+  const repoConfig = await getProjectRepositoryConfig(input.projectId);
+
   const vcs = createVCSDriver({
-    provider: 'github',
+    provider: repoConfig.provider as any,
     token: process.env.GITHUB_TOKEN || '',
   });
 
-  const pr = await vcs.createPullRequest('owner', 'repo', {
+  const pr = await vcs.createPullRequest(repoConfig.owner, repoConfig.repo, {
     title: input.title,
     body: input.description,
     sourceBranch: input.branchName,
@@ -93,11 +102,14 @@ export interface MergePullRequestInput {
 export async function mergePullRequest(input: MergePullRequestInput): Promise<void> {
   logger.info('Merging pull request', input);
 
+  // Get repository config from project
+  const repoConfig = await getProjectRepositoryConfig(input.projectId);
+
   const vcs = createVCSDriver({
-    provider: 'github',
+    provider: repoConfig.provider as any,
     token: process.env.GITHUB_TOKEN || '',
   });
 
-  await vcs.mergePullRequest('owner', 'repo', input.prNumber);
+  await vcs.mergePullRequest(repoConfig.owner, repoConfig.repo, input.prNumber);
 }
 

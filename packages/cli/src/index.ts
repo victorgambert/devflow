@@ -13,7 +13,7 @@ import { configCommands } from './commands/config';
 const program = new Command();
 
 program
-  .name('devflow')
+  .name('soma-squad-ai')
   .description('DevFlow - Universal DevOps Orchestrator')
   .version('1.0.0');
 
@@ -60,7 +60,7 @@ program
 // Config commands
 program
   .command('config:validate')
-  .description('Validate .devflow.yml configuration')
+  .description('Validate .soma-squad-ai.yml configuration')
   .action(configCommands.validate);
 
 program

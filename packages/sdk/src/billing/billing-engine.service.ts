@@ -3,8 +3,19 @@
  * Generates invoices from usage records
  */
 
-import { PrismaClient, InvoiceStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { UsageMeteringService } from './usage-metering.service';
+
+// Local type definitions (normally from Prisma schema)
+export enum InvoiceStatus {
+  DRAFT = 'DRAFT',
+  OPEN = 'OPEN',
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE',
+  CANCELLED = 'CANCELLED',
+  VOID = 'VOID',
+}
 
 export interface InvoiceLineItem {
   description: string;
@@ -313,4 +324,6 @@ export class BillingEngineService {
     };
   }
 }
+
+
 

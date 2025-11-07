@@ -2,7 +2,7 @@
  * DevFlow Constants
  */
 
-export const DEVFLOW_CONFIG_FILE = '.devflow.yml';
+export const DEVFLOW_CONFIG_FILE = '.soma-squad-ai.yml';
 
 export const DEFAULT_BRANCH = 'main';
 
@@ -27,7 +27,7 @@ export const SUPPORTED_CI_PROVIDERS = [
 
 export const SUPPORTED_CODE_AGENTS = ['anthropic', 'openai', 'cursor'] as const;
 
-export const WORKFLOW_TASK_QUEUE = 'devflow';
+export const WORKFLOW_TASK_QUEUE = 'soma-squad-ai';
 
 export const TEMPORAL_NAMESPACE = 'default';
 

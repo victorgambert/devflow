@@ -15,7 +15,7 @@ describe('ProjectAdapter', () => {
   });
 
   describe('loadProfile', () => {
-    it('should load and parse .devflow.yml', async () => {
+    it('should load and parse .soma-squad-ai.yml', async () => {
       // This would need a fixture file
       // For now, test the structure
       expect(adapter).toBeDefined();

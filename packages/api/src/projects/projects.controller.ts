@@ -5,7 +5,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { CreateProjectDto, UpdateProjectDto } from './dto';
+import { CreateProjectDto, UpdateProjectDto, LinkRepositoryDto } from './dto';
 
 @ApiTags('Projects')
 @Controller('projects')
@@ -33,6 +33,15 @@ export class ProjectsController {
   @ApiResponse({ status: 404, description: 'Project not found' })
   async getStatistics(@Param('id') id: string) {
     return this.projectsService.getStatistics(id);
+  }
+
+  @Post(':id/link-repository')
+  @ApiOperation({ summary: 'Link a repository to a project' })
+  @ApiResponse({ status: 200, description: 'Repository linked successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid repository URL or cannot access repository' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async linkRepository(@Param('id') id: string, @Body() dto: LinkRepositoryDto) {
+    return this.projectsService.linkRepository(id, dto.repositoryUrl);
   }
 
   @Post()

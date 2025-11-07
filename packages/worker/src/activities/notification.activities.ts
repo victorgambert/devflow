@@ -2,7 +2,7 @@
  * Notification Activities
  */
 
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 
 const logger = createLogger('NotificationActivities');
 

@@ -3,7 +3,23 @@
  * Tracks and records usage metrics for billing
  */
 
-import { PrismaClient, UsageType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+
+// Local type definitions (normally from Prisma schema)
+export enum UsageType {
+  AI_REQUESTS = 'AI_REQUESTS',
+  WORKFLOW_RUNS = 'WORKFLOW_RUNS',
+  CI_MINUTES = 'CI_MINUTES',
+  STORAGE = 'STORAGE',
+  USERS = 'USERS',
+  TICKET_PROCESSED = 'TICKET_PROCESSED',
+  LLM_TOKENS_INPUT = 'LLM_TOKENS_INPUT',
+  LLM_TOKENS_OUTPUT = 'LLM_TOKENS_OUTPUT',
+  PREVIEW_DEPLOY = 'PREVIEW_DEPLOY',
+  PREVIEW_HOURS = 'PREVIEW_HOURS',
+  STORAGE_GB_HOURS = 'STORAGE_GB_HOURS',
+  API_CALLS = 'API_CALLS',
+}
 
 export interface UsageMetric {
   organizationId: string;
@@ -38,8 +54,12 @@ export interface UsageBreakdown {
  * Pricing table (can be moved to config/database)
  */
 export const USAGE_PRICING = {
-  [UsageType.TICKET_PROCESSED]: { unit: 'ticket', price: 0.50 },      // $0.50 per ticket
+  [UsageType.AI_REQUESTS]: { unit: 'request', price: 0.10 },          // $0.10 per AI request
+  [UsageType.WORKFLOW_RUNS]: { unit: 'run', price: 0.05 },            // $0.05 per workflow run
   [UsageType.CI_MINUTES]: { unit: 'minute', price: 0.01 },            // $0.01 per minute
+  [UsageType.STORAGE]: { unit: 'gb', price: 0.10 },                   // $0.10 per GB
+  [UsageType.USERS]: { unit: 'user', price: 10.00 },                  // $10.00 per user
+  [UsageType.TICKET_PROCESSED]: { unit: 'ticket', price: 0.50 },      // $0.50 per ticket
   [UsageType.LLM_TOKENS_INPUT]: { unit: 'token', price: 0.000003 },   // $3 per 1M tokens
   [UsageType.LLM_TOKENS_OUTPUT]: { unit: 'token', price: 0.000015 },  // $15 per 1M tokens
   [UsageType.PREVIEW_DEPLOY]: { unit: 'deploy', price: 0.10 },        // $0.10 per deploy
@@ -360,4 +380,6 @@ export class UsageMeteringService {
       .slice(0, limit);
   }
 }
+
+
 

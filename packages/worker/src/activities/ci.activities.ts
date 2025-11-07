@@ -2,8 +2,8 @@
  * CI Activities
  */
 
-import { createLogger, CIStatus } from '@devflow/common';
-import { createCIDriver } from '@devflow/sdk';
+import { createLogger, CIStatus } from '@soma-squad-ai/common';
+import { createCIDriver } from '@soma-squad-ai/sdk';
 import { sleep } from '@temporalio/activity';
 
 const logger = createLogger('CIActivities');

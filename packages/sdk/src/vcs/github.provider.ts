@@ -14,7 +14,7 @@ import {
   CommitOptions,
   PRStatus,
   createLogger,
-} from '@devflow/common';
+} from '@soma-squad-ai/common';
 
 import { VCSDriver } from './vcs.interface';
 
@@ -200,7 +200,7 @@ export class GitHubProvider implements VCSDriver {
 
     // Create blobs for each file
     const blobs = await Promise.all(
-      options.files.map(async (file) => {
+      options.files.map(async (file: any) => {
         const { data: blob } = await this.octokit.git.createBlob({
           owner,
           repo,
@@ -216,7 +216,7 @@ export class GitHubProvider implements VCSDriver {
       owner,
       repo,
       base_tree: currentCommit.tree.sha,
-      tree: blobs.map((blob) => ({
+      tree: blobs.map((blob: any) => ({
         path: blob.path,
         mode: '100644',
         type: 'blob',
@@ -308,6 +308,112 @@ export class GitHubProvider implements VCSDriver {
     }
 
     return data.map((item) => item.path);
+  }
+
+  /**
+   * Get the complete repository tree (all files recursively)
+   */
+  async getRepositoryTree(owner: string, repo: string, ref?: string): Promise<Array<{ path: string; type: string; size?: number }>> {
+    this.logger.info('Getting repository tree', { owner, repo, ref });
+
+    const branch = ref || (await this.getRepository(owner, repo)).defaultBranch;
+    const { data: refData } = await this.octokit.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+    });
+
+    const { data: tree } = await this.octokit.git.getTree({
+      owner,
+      repo,
+      tree_sha: refData.object.sha,
+      recursive: 'true',
+    });
+
+    return (tree.tree || []).map((item) => ({
+      path: item.path || '',
+      type: item.type || 'blob',
+      size: item.size,
+    }));
+  }
+
+  /**
+   * Get repository languages (statistics)
+   */
+  async getRepositoryLanguages(owner: string, repo: string): Promise<Record<string, number>> {
+    this.logger.info('Getting repository languages', { owner, repo });
+    const { data } = await this.octokit.repos.listLanguages({ owner, repo });
+    return data;
+  }
+
+  /**
+   * Search code in repository
+   */
+  async searchCode(owner: string, repo: string, query: string): Promise<Array<{ path: string; content: string }>> {
+    this.logger.info('Searching code', { owner, repo, query });
+
+    try {
+      const { data } = await this.octokit.search.code({
+        q: `${query} repo:${owner}/${repo}`,
+        per_page: 10,
+      });
+
+      // Get content for each result
+      const results = await Promise.all(
+        data.items.map(async (item) => {
+          try {
+            const content = await this.getFileContent(owner, repo, item.path);
+            return { path: item.path, content };
+          } catch (error) {
+            this.logger.warn('Failed to get content for search result', { path: item.path });
+            return null;
+          }
+        }),
+      );
+
+      return results.filter((r): r is { path: string; content: string } => r !== null);
+    } catch (error) {
+      this.logger.error('Code search failed', error as Error);
+      return [];
+    }
+  }
+
+  /**
+   * Get multiple files content at once
+   */
+  async getMultipleFiles(owner: string, repo: string, paths: string[], ref?: string): Promise<Array<{ path: string; content: string }>> {
+    this.logger.info('Getting multiple files', { owner, repo, count: paths.length });
+
+    const results = await Promise.all(
+      paths.map(async (path) => {
+        try {
+          const content = await this.getFileContent(owner, repo, path, ref);
+          return { path, content };
+        } catch (error) {
+          this.logger.warn('Failed to get file content', { path });
+          return null;
+        }
+      }),
+    );
+
+    return results.filter((r): r is { path: string; content: string } => r !== null);
+  }
+
+  /**
+   * Check if a file exists in repository
+   */
+  async fileExists(owner: string, repo: string, path: string, ref?: string): Promise<boolean> {
+    try {
+      await this.octokit.repos.getContent({
+        owner,
+        repo,
+        path,
+        ref,
+      });
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   private mapPRStatus(state: string, mergedAt: string | null): PRStatus {

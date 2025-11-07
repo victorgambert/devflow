@@ -3,7 +3,7 @@
  * Complete audit trail for all DevFlow operations
  */
 
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 
 const logger = createLogger('AuditLogger');
 
@@ -493,12 +493,9 @@ export class AuditLogger {
 
   private async alertOnCriticalEvent(event: AuditEvent): Promise<void> {
     // TODO: Send alerts via Slack/Email
-    logger.error('Critical audit event', {
-      type: event.type,
-      action: event.action,
-      result: event.result,
-      details: event.metadata,
-    });
+    const error = new Error(`Critical audit event: ${event.type} - ${event.action}`);
+    logger.error(`Critical audit event`, error);
+    logger.info('Event details', { type: event.type, action: event.action, result: event.result });
   }
 }
 

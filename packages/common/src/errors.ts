@@ -23,3 +23,14 @@ export class AuthenticationError extends Error {
   }
 }
 
+export class ExternalServiceError extends Error {
+  constructor(
+    message: string,
+    public service: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'ExternalServiceError';
+  }
+}
+

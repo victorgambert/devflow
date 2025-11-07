@@ -2,8 +2,8 @@
  * Notion Integration Activities - Real Implementation
  */
 
-import { createLogger } from '@devflow/common';
-import { NotionClient } from '@devflow/sdk';
+import { createLogger } from '@soma-squad-ai/common';
+import { NotionClient, formatSpecAsMarkdown } from '@soma-squad-ai/sdk';
 
 const logger = createLogger('NotionActivities');
 
@@ -22,6 +22,7 @@ export interface SyncNotionTaskOutput {
   epic?: string;
   storyPoints?: number;
   labels?: string[];
+  acceptanceCriteria?: string[];
 }
 
 /**
@@ -135,5 +136,82 @@ export async function queryNotionTasksByStatus(status: string): Promise<SyncNoti
   } catch (error) {
     logger.error('Failed to query Notion tasks', error as Error, { status });
     throw error;
+  }
+}
+
+/**
+ * Append spec content to Notion page body
+ */
+export async function appendSpecToNotionPage(input: {
+  notionId: string;
+  spec: any;
+}): Promise<void> {
+  logger.info('Appending spec to Notion page', { notionId: input.notionId });
+
+  const notionApiKey = process.env.NOTION_API_KEY;
+  const notionDatabaseId = process.env.NOTION_DATABASE_ID;
+
+  if (!notionApiKey || !notionDatabaseId) {
+    throw new Error('Notion not configured');
+  }
+
+  try {
+    const client = new NotionClient({
+      apiKey: notionApiKey,
+      databaseId: notionDatabaseId,
+    });
+
+    // Format spec as markdown
+    const markdown = formatSpecAsMarkdown(input.spec);
+
+    // Append to page content
+    await client.appendPageContent(input.notionId, markdown);
+
+    logger.info('Spec appended to Notion page', { notionId: input.notionId });
+  } catch (error) {
+    logger.error('Failed to append spec to Notion', error as Error, { notionId: input.notionId });
+    throw error;
+  }
+}
+
+/**
+ * Append a warning callout to Notion page after spec generation
+ */
+export async function appendWarningToNotionPage(input: {
+  notionId: string;
+  message?: string;
+}): Promise<void> {
+  logger.info('Appending warning callout to Notion page', { notionId: input.notionId });
+
+  const notionApiKey = process.env.NOTION_API_KEY;
+  const notionDatabaseId = process.env.NOTION_DATABASE_ID;
+
+  if (!notionApiKey || !notionDatabaseId) {
+    throw new Error('Notion not configured');
+  }
+
+  try {
+    const client = new NotionClient({
+      apiKey: notionApiKey,
+      databaseId: notionDatabaseId,
+    });
+
+    // Use custom message or default
+    const warningMessage =
+      input.message ||
+      process.env.NOTION_SPEC_WARNING_MESSAGE ||
+      '⚠️ Les spécifications ont été générées automatiquement par DevFlow.\nLes modifications manuelles ne seront pas prises en compte dans le flux de développement.';
+
+    // Append callout to page
+    await client.appendCalloutToPage(input.notionId, warningMessage, {
+      emoji: '⚠️',
+      color: 'yellow_background',
+    });
+
+    logger.info('Warning callout appended to Notion page', { notionId: input.notionId });
+  } catch (error) {
+    logger.error('Failed to append warning to Notion', error as Error, { notionId: input.notionId });
+    // Non-critical operation - don't throw
+    logger.warn('Continuing despite warning callout failure');
   }
 }

@@ -16,7 +16,7 @@ import { trace, context, SpanStatusCode, Span } from '@opentelemetry/api';
 // ============================================
 
 const OTEL_COLLECTOR_URL = process.env.OTEL_COLLECTOR_URL || 'http://localhost:4318';
-const SERVICE_NAME = process.env.SERVICE_NAME || 'devflow';
+const SERVICE_NAME = process.env.SERVICE_NAME || 'soma-squad-ai';
 const SERVICE_VERSION = process.env.SERVICE_VERSION || '1.5.0';
 const ENVIRONMENT = process.env.NODE_ENV || 'development';
 
@@ -78,7 +78,7 @@ export function shutdownTracing(): Promise<void> {
 // Tracer
 // ============================================
 
-const tracer = trace.getTracer('devflow', SERVICE_VERSION);
+const tracer = trace.getTracer('soma-squad-ai', SERVICE_VERSION);
 
 // ============================================
 // Span Helpers
@@ -400,4 +400,6 @@ export async function traceCiOperation<T>(
     fn,
   );
 }
+
+
 

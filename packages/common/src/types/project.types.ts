@@ -22,6 +22,8 @@ export interface ProjectMetadata {
   repository: string;
   language: string;
   framework?: string;
+  owner?: string; // Repository owner (parsed from URL)
+  repo?: string; // Repository name (parsed from URL)
 }
 
 export interface NotionConfig {
@@ -38,7 +40,9 @@ export interface NotionConfig {
 }
 
 export interface VCSConfig {
-  provider: 'github' | 'gitlab' | 'bitbucket';
+  provider: 'github';
+  owner?: string; // Repository owner
+  repo?: string; // Repository name
   base_branch: string;
   branch_pattern: string;
   pr_template?: string;
@@ -56,7 +60,7 @@ export interface CommandsConfig {
 }
 
 export interface CIConfig {
-  provider: 'github-actions' | 'gitlab-ci' | 'bitbucket-pipelines' | 'jenkins' | 'circleci';
+  provider: 'github-actions';
   config_path: string;
   artifacts?: {
     coverage?: string;
@@ -66,7 +70,7 @@ export interface CIConfig {
 }
 
 export interface CodeAgentConfig {
-  provider: 'anthropic' | 'openai' | 'cursor';
+  provider: 'anthropic';
   model: string;
   prompts?: {
     spec?: string;

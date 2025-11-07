@@ -71,7 +71,7 @@ const baseConfig: pino.LoggerOptions = {
   },
   timestamp: pino.stdTimeFunctions.isoTime,
   base: {
-    service: process.env.SERVICE_NAME || 'devflow',
+    service: process.env.SERVICE_NAME || 'soma-squad-ai',
     env: process.env.NODE_ENV || 'development',
     version: process.env.SERVICE_VERSION || '1.5.0',
   },
@@ -307,4 +307,6 @@ export function createLogger(context: string | LogContext): StructuredLogger {
 // ============================================
 
 export const logger = new StructuredLogger('default');
+
+
 

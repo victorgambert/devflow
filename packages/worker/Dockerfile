@@ -1,82 +1,100 @@
-# DevFlow Worker - Production Dockerfile
+# DevFlow Worker Dockerfile
+# Use debian-based image for Temporal compatibility (Alpine has issues with native modules)
+FROM node:20-slim AS base
 
-# ============================================
-# Stage 1: Dependencies
-# ============================================
-FROM node:18-alpine AS deps
-
-WORKDIR /app
+# Install required system dependencies for Temporal
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm
-RUN npm install -g pnpm@8
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/worker/package.json ./packages/worker/
+# Set working directory
+WORKDIR /app
+
+# Copy workspace files
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY tsconfig.json ./
+
+# ================================
+# Dependencies Stage
+# ================================
+FROM base AS deps
+
+# Copy package.json files for all packages
 COPY packages/common/package.json ./packages/common/
 COPY packages/sdk/package.json ./packages/sdk/
-COPY packages/drivers/package.json ./packages/drivers/
-COPY packages/observability/package.json ./packages/observability/
+COPY packages/worker/package.json ./packages/worker/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --prod
-
-# ============================================
-# Stage 2: Builder
-# ============================================
-FROM node:18-alpine AS builder
-
-WORKDIR /app
-
-# Install pnpm
-RUN npm install -g pnpm@8
-
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY packages/worker ./packages/worker
-COPY packages/common ./packages/common
-COPY packages/sdk ./packages/sdk
-COPY packages/drivers ./packages/drivers
-COPY packages/observability ./packages/observability
-
-# Install all dependencies (including dev)
 RUN pnpm install --frozen-lockfile
 
-# Build
+# ================================
+# Build Stage
+# ================================
+FROM base AS builder
+
+# Copy node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+
+# Copy source code
+COPY packages/common ./packages/common
+COPY packages/sdk ./packages/sdk
+COPY packages/worker ./packages/worker
+
+# Build common package
+WORKDIR /app/packages/common
 RUN pnpm build
 
-# ============================================
-# Stage 3: Production
-# ============================================
-FROM node:18-alpine AS runner
+# Build SDK package
+WORKDIR /app/packages/sdk
+RUN pnpm build
 
-# Security: Run as non-root
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 devflow
+# Generate Prisma Client in builder stage (it has all dependencies)
+WORKDIR /app/packages/api
+COPY packages/api/prisma ./prisma
+RUN npx prisma generate
+
+# Build Worker
+WORKDIR /app/packages/worker
+RUN pnpm build
+
+# ================================
+# Production Stage
+# ================================
+FROM node:20-slim AS production
+
+# Install required system dependencies for Temporal
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps --chown=devflow:nodejs /app/node_modules ./node_modules
-COPY --from=deps --chown=devflow:nodejs /app/packages ./packages
+# Copy package files
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/common/package.json ./packages/common/
+COPY packages/sdk/package.json ./packages/sdk/
+COPY packages/api/package.json ./packages/api/
+COPY packages/worker/package.json ./packages/worker/
 
-# Copy built application
-COPY --from=builder --chown=devflow:nodejs /app/packages/worker/dist ./packages/worker/dist
-COPY --from=builder --chown=devflow:nodejs /app/packages/common/dist ./packages/common/dist
-COPY --from=builder --chown=devflow:nodejs /app/packages/sdk/dist ./packages/sdk/dist
-COPY --from=builder --chown=devflow:nodejs /app/packages/drivers/dist ./packages/drivers/dist
-COPY --from=builder --chown=devflow:nodejs /app/packages/observability/dist ./packages/observability/dist
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
 
-# Environment
-ENV NODE_ENV=production
-ENV METRICS_PORT=9464
+# Copy built artifacts from builder
+COPY --from=builder /app/packages/common/dist ./packages/common/dist
+COPY --from=builder /app/packages/common/package.json ./packages/common/
+COPY --from=builder /app/packages/sdk/dist ./packages/sdk/dist
+COPY --from=builder /app/packages/sdk/package.json ./packages/sdk/
+COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
 
-# Health check (metrics endpoint)
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:9464/metrics', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# Copy generated Prisma Client from builder
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client ./node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client
 
-USER devflow
+# Set working directory to Worker
+WORKDIR /app/packages/worker
 
-EXPOSE 9464
-
-CMD ["node", "packages/worker/dist/index.js"]
+# Start the worker
+CMD ["node", "dist/index.js"]

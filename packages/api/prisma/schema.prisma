@@ -1,4 +1,4 @@
-// DevFlow Prisma Schema
+// Soma Squad AI Prisma Schema
 // Database: PostgreSQL
 
 generator client {
@@ -45,13 +45,14 @@ model Project {
 
 enum TaskStatus {
   TODO
+  SPECIFICATION
   IN_PROGRESS
   IN_REVIEW
   TESTING
   DONE
   BLOCKED
   CANCELLED
-  
+
   @@map("task_status")
 }
 

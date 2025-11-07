@@ -3,8 +3,26 @@
  * GDPR compliance: data retention, anonymization, deletion
  */
 
-import { PrismaClient, DataRetentionPolicyType, AnonymizationAction } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
+
+// Local type definitions (normally from Prisma schema)
+export enum DataRetentionPolicyType {
+  AUDIT_LOGS = 'AUDIT_LOGS',
+  WORKFLOW_LOGS = 'WORKFLOW_LOGS',
+  CI_LOGS = 'CI_LOGS',
+  USAGE_RECORDS = 'USAGE_RECORDS',
+  INVOICES = 'INVOICES',
+  USER_DATA = 'USER_DATA',
+}
+
+export enum AnonymizationAction {
+  REMOVE_IP = 'REMOVE_IP',
+  REMOVE_USER_AGENT = 'REMOVE_USER_AGENT',
+  HASH_EMAIL = 'HASH_EMAIL',
+  REMOVE_NAME = 'REMOVE_NAME',
+  FULL_ANONYMIZATION = 'FULL_ANONYMIZATION',
+}
 
 export interface DataRetentionConfig {
   type: DataRetentionPolicyType;
@@ -318,18 +336,18 @@ export class ComplianceService {
         gdprConsent: user.gdprConsent,
         gdprConsentAt: user.gdprConsentAt,
       },
-      organizations: user.organizations.map(m => ({
+      organizations: user.organizations.map((m: any) => ({
         organization: m.organization.name,
         role: m.role,
         joinedAt: m.joinedAt,
       })),
-      apiKeys: user.apiKeys.map(k => ({
+      apiKeys: user.apiKeys.map((k: any) => ({
         name: k.name,
         scopes: k.scopes,
         createdAt: k.createdAt,
         lastUsedAt: k.lastUsedAt,
       })),
-      dataExports: user.dataExports.map(e => ({
+      dataExports: user.dataExports.map((e: any) => ({
         type: e.type,
         format: e.format,
         status: e.status,
@@ -378,7 +396,7 @@ export class ComplianceService {
         costQuota: org.costQuota,
         createdAt: org.createdAt,
       },
-      members: org.members.map(m => ({
+      members: org.members.map((m: any) => ({
         user: {
           email: m.user.email,
           name: m.user.name,
@@ -386,14 +404,14 @@ export class ComplianceService {
         role: m.role,
         joinedAt: m.joinedAt,
       })),
-      projects: org.projects.map(p => ({
+      projects: org.projects.map((p: any) => ({
         name: p.project.name,
         repository: p.project.repository,
         vcsDriver: p.vcsDriver,
         ciDriver: p.ciDriver,
         previewDriver: p.previewDriver,
       })),
-      usage: org.usageRecords.map(u => ({
+      usage: org.usageRecords.map((u: any) => ({
         type: u.type,
         quantity: u.quantity,
         unit: u.unit,
@@ -401,7 +419,7 @@ export class ComplianceService {
         periodStart: u.periodStart,
         periodEnd: u.periodEnd,
       })),
-      invoices: org.invoices.map(i => ({
+      invoices: org.invoices.map((i: any) => ({
         invoiceNumber: i.invoiceNumber,
         status: i.status,
         periodStart: i.periodStart,
@@ -452,4 +470,6 @@ export class ComplianceService {
     });
   }
 }
+
+
 

@@ -4,7 +4,7 @@
 
 import { Worker, NativeConnection } from '@temporalio/worker';
 import * as activities from './activities';
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 import * as dotenv from 'dotenv';
 
 dotenv.config();

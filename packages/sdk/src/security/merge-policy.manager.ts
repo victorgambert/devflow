@@ -3,8 +3,8 @@
  * Manages merge policies and determines when auto-merge is allowed
  */
 
-import { createLogger } from '@devflow/common';
-import { PolicyGuard, PolicyValidationResult } from './policy.guard';
+import { createLogger } from '@soma-squad-ai/common';
+import { PolicyGuard } from './policy.guard';
 import { auditLogger, AuditEventType } from './audit.logger';
 
 const logger = createLogger('MergePolicyManager');
@@ -73,24 +73,7 @@ export class MergePolicyManager {
   private policyGuard: PolicyGuard;
 
   constructor(policy: MergePolicy, policyGuard: PolicyGuard) {
-    this.policy = {
-      // Defaults
-      requireReviews: true,
-      minimumApprovals: 1,
-      requireCodeOwnerApproval: false,
-      dismissStaleReviews: true,
-      requireStatusChecks: true,
-      requiredChecks: ['ci', 'tests'],
-      requireAllChecksPass: true,
-      requireAllTestsPass: true,
-      requireLintPass: true,
-      requireBuildPass: true,
-      requireSecurityScan: true,
-      blockOnSecurityIssues: true,
-      blockOnSecrets: true,
-      enableAutoMerge: false,
-      ...policy,
-    };
+    this.policy = policy;
     this.policyGuard = policyGuard;
   }
 
@@ -281,7 +264,7 @@ export class MergePolicyManager {
   /**
    * Check quality gates
    */
-  private checkQualityGates(prData: any, reasons: string[], warnings: string[]): boolean {
+  private checkQualityGates(prData: any, reasons: string[], _warnings: string[]): boolean {
     let passed = true;
 
     // Coverage threshold
@@ -419,4 +402,6 @@ export class MergePolicyManager {
     return Math.round((score / maxScore) * 100);
   }
 }
+
+
 

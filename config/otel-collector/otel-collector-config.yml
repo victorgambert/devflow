@@ -40,7 +40,7 @@ exporters:
   # Metrics to Prometheus
   prometheus:
     endpoint: "0.0.0.0:8889"
-    namespace: devflow
+    namespace: soma-squad-ai
   
   # Logging for debugging
   logging:
@@ -63,4 +63,6 @@ service:
       level: info
     metrics:
       address: 0.0.0.0:8888
+
+
 

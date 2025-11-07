@@ -2,8 +2,9 @@
  * Specification Generation Activities
  */
 
-import { createLogger } from '@devflow/common';
-import { createCodeAgentDriver } from '@devflow/sdk';
+import { createLogger } from '@soma-squad-ai/common';
+import { createCodeAgentDriver, extractSpecGenerationContext, formatContextForAI } from '@soma-squad-ai/sdk';
+import { analyzeRepositoryContext } from './codebase.activities';
 
 const logger = createLogger('SpecActivities');
 
@@ -20,7 +21,7 @@ export interface GenerateSpecificationOutput {
 }
 
 /**
- * Generate technical specification using AI
+ * Generate technical specification using AI with codebase context
  */
 export async function generateSpecification(
   input: GenerateSpecificationInput,
@@ -28,12 +29,31 @@ export async function generateSpecification(
   logger.info('Generating specification', input);
 
   try {
+    // Analyze codebase context
+    logger.info('Analyzing repository context');
+    const codebaseContext = await analyzeRepositoryContext({
+      projectId: input.projectId,
+      taskDescription: input.task.description,
+    });
+
+    // Extract relevant context for spec generation
+    const specContext = extractSpecGenerationContext(codebaseContext);
+
+    logger.info('Repository context analyzed', {
+      language: specContext.language,
+      framework: specContext.framework,
+      dependencies: specContext.dependencies.length,
+      conventions: specContext.conventions.length,
+    });
+
+    // Create AI agent
     const agent = createCodeAgentDriver({
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY || '',
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-0',
     });
 
+    // Generate spec with real codebase context
     const spec = await agent.generateSpec({
       task: {
         title: input.task.title,
@@ -41,10 +61,14 @@ export async function generateSpecification(
         priority: input.task.priority,
       },
       project: {
-        name: 'DevFlow Project',
-        language: 'typescript',
-        framework: 'nestjs',
+        language: specContext.language,
+        framework: specContext.framework,
+        dependencies: specContext.dependencies,
+        conventions: specContext.conventions,
+        patterns: specContext.patterns,
       },
+      // Add full context as additional info
+      codebaseContext: formatContextForAI(codebaseContext),
     });
 
     return spec;

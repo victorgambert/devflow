@@ -43,7 +43,7 @@ export const workflowCommands = {
       console.log(chalk.bold('\n🚀 Workflow Details:\n'));
       console.log(`  ${chalk.bold('Workflow ID:')} ${data.workflowId}`);
       console.log(`  ${chalk.bold('Run ID:')} ${data.runId}\n`);
-      console.log(chalk.gray(`Monitor progress: devflow workflow:status ${data.workflowId}\n`));
+      console.log(chalk.gray(`Monitor progress: soma-squad-ai workflow:status ${data.workflowId}\n`));
     } catch (error: any) {
       spinner.fail(chalk.red('Failed to start workflow'));
       console.error(error.response?.data?.message || error.message);

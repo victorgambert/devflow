@@ -1,12 +1,12 @@
 {
-  "name": "@devflow/cli",
+  "name": "@soma-squad-ai/cli",
   "version": "1.7.0",
-  "description": "DevFlow CLI - Universal orchestrator command-line interface",
-  "author": "DevFlow Team",
+  "description": "Soma Squad AI CLI - Universal orchestrator command-line interface",
+  "author": "Soma Squad AI Team",
   "license": "MIT",
   "main": "dist/index.js",
   "bin": {
-    "devflow": "./bin/run"
+    "soma-squad-ai": "./bin/run"
   },
   "scripts": {
     "build": "tsc",
@@ -25,15 +25,16 @@
     "oclif.manifest.json"
   ],
   "keywords": [
-    "devflow",
+    "soma-squad-ai",
     "cli",
     "orchestrator",
     "automation",
-    "temporal"
+    "temporal",
+    "ai"
   ],
   "dependencies": {
-    "@devflow/common": "workspace:*",
-    "@devflow/sdk": "workspace:*",
+    "@soma-squad-ai/common": "workspace:*",
+    "@soma-squad-ai/sdk": "workspace:*",
     "@oclif/core": "^3.15.1",
     "@oclif/plugin-help": "^6.0.9",
     "@oclif/plugin-plugins": "^4.1.8",
@@ -60,8 +61,8 @@
     "node": ">=18.0.0"
   },
   "oclif": {
-    "bin": "devflow",
-    "dirname": "devflow",
+    "bin": "soma-squad-ai",
+    "dirname": "soma-squad-ai",
     "commands": "./dist/commands",
     "plugins": [
       "@oclif/plugin-help",
@@ -70,10 +71,10 @@
     "topicSeparator": " ",
     "topics": {
       "connect": {
-        "description": "Connect DevFlow to external services (Notion, GitHub)"
+        "description": "Connect Soma Squad AI to external services (Notion, GitHub)"
       },
       "api-keys": {
-        "description": "Manage API keys for DevFlow"
+        "description": "Manage API keys for Soma Squad AI"
       },
       "templates": {
         "description": "Generate CI/CD templates"

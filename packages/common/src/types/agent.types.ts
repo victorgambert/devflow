@@ -27,8 +27,12 @@ export interface SpecGenerationInput {
   project: {
     language: string;
     framework?: string;
+    dependencies?: string[];
+    conventions?: string[];
+    patterns?: string[];
   };
   existingFiles?: string[];
+  codebaseContext?: string;
 }
 
 export interface SpecGenerationOutput {
@@ -52,6 +56,8 @@ export interface CodeGenerationInput {
     path: string;
     content: string;
   }>;
+  conventions?: string[];
+  dependencies?: string[];
 }
 
 export interface CodeGenerationOutput {

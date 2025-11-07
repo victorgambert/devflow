@@ -14,8 +14,12 @@ export * from './ci.activities';
 // Notification activities
 export * from './notification.activities';
 
+// Codebase analysis activities
+export * from './codebase.activities';
+
 // Code generation activities (from Phase 2)
-export * from './code-generation.activities';
+export * from './code.activities';
+export * from './spec.activities';
 
 // Phase 3: QA activities
 export * from './qa.activities';

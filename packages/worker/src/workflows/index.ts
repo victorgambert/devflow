@@ -2,4 +2,5 @@
  * Temporal Workflows
  */
 
-export * from './devflow.workflow';
+export * from './soma-squad-ai.workflow';
+export * from './spec-generation.workflow';

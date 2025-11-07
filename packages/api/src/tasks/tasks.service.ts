@@ -2,12 +2,13 @@
  * Tasks Service - Refactored with Prisma + Notion Integration
  */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { createLogger } from '@devflow/common';
+import { Injectable, NotFoundException, forwardRef, Inject } from '@nestjs/common';
+import { createLogger } from '@soma-squad-ai/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotionClient } from '@devflow/sdk';
+import { NotionClient } from '@soma-squad-ai/sdk';
 import { ConfigService } from '@nestjs/config';
-import { CreateTaskDto } from './dto';
+import { CreateTaskDto, UpdateTaskDto } from './dto';
+import { WorkflowsService } from '../workflows/workflows.service';
 
 @Injectable()
 export class TasksService {
@@ -17,6 +18,8 @@ export class TasksService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    @Inject(forwardRef(() => WorkflowsService))
+    private workflowsService: WorkflowsService,
   ) {
     // Initialize Notion client if configured
     const notionApiKey = this.config.get('NOTION_API_KEY');
@@ -81,7 +84,7 @@ export class TasksService {
         title: dto.title,
         description: dto.description,
         priority: dto.priority as any,
-        assignee: dto.assignee,
+        // assignee: dto.assignee,
       },
       include: {
         project: true,
@@ -89,11 +92,11 @@ export class TasksService {
     });
   }
 
-  async update(id: string, updates: Partial<CreateTaskDto>) {
+  async update(id: string, updates: UpdateTaskDto) {
     this.logger.info('Updating task', { id });
 
-    // Check if task exists
-    await this.findOne(id);
+    // Get existing task to check for status changes
+    const existingTask = await this.findOne(id);
 
     const updated = await this.prisma.task.update({
       where: { id },
@@ -102,6 +105,34 @@ export class TasksService {
         project: true,
       },
     });
+
+    // Check if status changed to SPECIFICATION
+    const statusChanged = updates.status && updates.status !== existingTask.status;
+    const movedToSpecification = statusChanged && updates.status === 'SPECIFICATION';
+
+    if (movedToSpecification) {
+      this.logger.info('Task moved to SPECIFICATION status, triggering spec generation', {
+        taskId: id,
+        notionId: updated.notionId,
+      });
+
+      try {
+        // Trigger spec generation workflow
+        const workflowResult = await this.workflowsService.startSpecGeneration(
+          updated.notionId || id,
+          updated.projectId,
+          'system',
+        );
+
+        this.logger.info('Spec generation workflow started', {
+          taskId: id,
+          workflowId: workflowResult.workflowId,
+        });
+      } catch (error) {
+        this.logger.error('Failed to start spec generation workflow', error as Error, { id });
+        // Don't fail the update if workflow start fails
+      }
+    }
 
     // Sync back to Notion if task has notionId
     if (this.notionClient && updated.notionId) {
@@ -156,12 +187,34 @@ export class TasksService {
           };
 
           if (existing) {
+            // Check if status changed to SPECIFICATION
+            const statusChanged = taskData.status !== existing.status;
+            const movedToSpecification = statusChanged && taskData.status === 'SPECIFICATION';
+
             // Update existing task
             await this.prisma.task.update({
               where: { id: existing.id },
               data: taskData,
             });
             updated++;
+
+            // Trigger spec generation if moved to SPECIFICATION
+            if (movedToSpecification) {
+              this.logger.info('Task synced with SPECIFICATION status, triggering spec generation', {
+                taskId: existing.id,
+                notionId: notionTask.id,
+              });
+
+              try {
+                await this.workflowsService.startSpecGeneration(
+                  notionTask.id,
+                  projectId || existing.projectId,
+                  'system',
+                );
+              } catch (error) {
+                this.logger.error('Failed to start spec generation workflow during sync', error as Error);
+              }
+            }
           } else if (projectId) {
             // Create new task
             await this.prisma.task.create({
@@ -291,6 +344,7 @@ export class TasksService {
   private mapNotionStatus(notionStatus: string): any {
     const statusMap: Record<string, string> = {
       'To Do': 'TODO',
+      'Specification': 'SPECIFICATION',
       'In Progress': 'IN_PROGRESS',
       'In Review': 'IN_REVIEW',
       'Testing': 'TESTING',
@@ -303,6 +357,7 @@ export class TasksService {
   private mapStatusToNotion(status: string): string {
     const statusMap: Record<string, string> = {
       TODO: 'To Do',
+      SPECIFICATION: 'Specification',
       IN_PROGRESS: 'In Progress',
       IN_REVIEW: 'In Review',
       TESTING: 'Testing',

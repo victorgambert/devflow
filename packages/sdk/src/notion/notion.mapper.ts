@@ -118,7 +118,7 @@ export class NotionMapper {
   /**
    * Map DevFlow status to Notion status
    */
-  mapStatusToNotion(devflowStatus: string): string {
+  mapStatusToNotion(somaSquadAIStatus: string): string {
     const statusMap: Record<string, string> = {
       TODO: 'To Do',
       IN_PROGRESS: 'In Progress',
@@ -129,7 +129,7 @@ export class NotionMapper {
       CANCELLED: 'Cancelled',
     };
 
-    return statusMap[devflowStatus] || devflowStatus;
+    return statusMap[somaSquadAIStatus] || somaSquadAIStatus;
   }
 
   /**
@@ -149,7 +149,7 @@ export class NotionMapper {
   /**
    * Map DevFlow priority to Notion priority
    */
-  mapPriorityToNotion(devflowPriority: string): string {
+  mapPriorityToNotion(somaSquadAIPriority: string): string {
     const priorityMap: Record<string, string> = {
       LOW: 'Low',
       MEDIUM: 'Medium',
@@ -157,7 +157,7 @@ export class NotionMapper {
       CRITICAL: 'Critical',
     };
 
-    return priorityMap[devflowPriority] || devflowPriority;
+    return priorityMap[somaSquadAIPriority] || somaSquadAIPriority;
   }
 
   // Private helper methods

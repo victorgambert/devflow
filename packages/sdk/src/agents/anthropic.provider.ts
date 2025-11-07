@@ -13,7 +13,7 @@ import {
   FixGenerationInput,
   FixGenerationOutput,
   createLogger,
-} from '@devflow/common';
+} from '@soma-squad-ai/common';
 
 import {
   CodeAgentDriver,
@@ -29,7 +29,7 @@ export class AnthropicProvider implements CodeAgentDriver {
   private logger = createLogger('AnthropicProvider');
   private baseURL = 'https://api.anthropic.com/v1';
 
-  constructor(apiKey: string, model = 'claude-3-5-sonnet-20241022') {
+  constructor(apiKey: string, model = 'claude-sonnet-4-0') {
     this.apiKey = apiKey;
     this.model = model;
   }

@@ -1,7 +1,7 @@
 {
-  "name": "@devflow/worker",
+  "name": "@soma-squad-ai/worker",
   "version": "1.0.0",
-  "description": "Temporal workers for DevFlow workflows",
+  "description": "Temporal workers for Soma Squad AI workflows",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -13,14 +13,21 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["devflow", "temporal", "worker", "workflow"],
-  "author": "DevFlow Team",
+  "keywords": [
+    "soma-squad-ai",
+    "temporal",
+    "worker",
+    "workflow",
+    "ai"
+  ],
+  "author": "Soma Squad AI Team",
   "license": "MIT",
   "dependencies": {
-    "@devflow/common": "workspace:*",
-    "@devflow/sdk": "workspace:*",
-    "@temporalio/worker": "^1.9.0",
+    "@soma-squad-ai/common": "workspace:*",
+    "@soma-squad-ai/sdk": "workspace:*",
+    "@prisma/client": "^5.8.1",
     "@temporalio/activity": "^1.9.0",
+    "@temporalio/worker": "^1.9.0",
     "@temporalio/workflow": "^1.9.0",
     "dotenv": "^16.3.1"
   },
@@ -30,4 +37,3 @@
     "typescript": "^5.3.3"
   }
 }
-

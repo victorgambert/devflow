@@ -3,7 +3,7 @@
  * Tracks LLM usage, enforces quotas, and manages budgets
  */
 
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 import { auditLogger, AuditEventType } from './audit.logger';
 
 const logger = createLogger('LLMBudgetManager');
@@ -362,4 +362,6 @@ export class LLMBudgetManager {
     logger.info('Budget manager reset');
   }
 }
+
+
 

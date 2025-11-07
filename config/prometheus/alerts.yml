@@ -1,12 +1,12 @@
 # Prometheus Alert Rules - Phase 5
 
 groups:
-  - name: devflow_sla_alerts
+  - name: soma-squad-ai_sla_alerts
     interval: 30s
     rules:
       # Workflow Duration SLA
       - alert: WorkflowDurationSLA
-        expr: devflow_workflow_duration_seconds > 3600
+        expr: soma-squad-ai_workflow_duration_seconds > 3600
         for: 1m
         labels:
           severity: warning
@@ -17,7 +17,7 @@ groups:
 
       # CI Duration SLA
       - alert: CIDurationSLA
-        expr: devflow_ci_duration_seconds > 1800
+        expr: soma-squad-ai_ci_duration_seconds > 1800
         for: 1m
         labels:
           severity: warning
@@ -28,7 +28,7 @@ groups:
 
       # LLM Daily Cost SLA
       - alert: LLMDailyCostSLA
-        expr: devflow_llm_cost_usd{period="day"} > 50
+        expr: soma-squad-ai_llm_cost_usd{period="day"} > 50
         for: 5m
         labels:
           severity: critical
@@ -39,7 +39,7 @@ groups:
 
       # Budget Remaining Low
       - alert: BudgetRemainingLow
-        expr: devflow_budget_remaining_percent < 10
+        expr: soma-squad-ai_budget_remaining_percent < 10
         for: 5m
         labels:
           severity: warning
@@ -48,12 +48,12 @@ groups:
           summary: "Budget remaining is low"
           description: "{{ $labels.quota_type }} remaining: {{ $value }}%"
 
-  - name: devflow_health_alerts
+  - name: soma-squad-ai_health_alerts
     interval: 30s
     rules:
       # High Workflow Failure Rate
       - alert: HighWorkflowFailureRate
-        expr: (rate(devflow_workflow_executions_total{status="failed"}[5m]) / rate(devflow_workflow_executions_total[5m])) > 0.1
+        expr: (rate(soma-squad-ai_workflow_executions_total{status="failed"}[5m]) / rate(soma-squad-ai_workflow_executions_total[5m])) > 0.1
         for: 5m
         labels:
           severity: critical
@@ -63,7 +63,7 @@ groups:
 
       # Too Many Active Workflows
       - alert: TooManyActiveWorkflows
-        expr: devflow_active_workflows > 50
+        expr: soma-squad-ai_active_workflows > 50
         for: 5m
         labels:
           severity: warning
@@ -73,7 +73,7 @@ groups:
 
       # Security Issues Detected
       - alert: SecurityIssuesDetected
-        expr: increase(devflow_security_issues_total{severity="critical"}[5m]) > 0
+        expr: increase(soma-squad-ai_security_issues_total{severity="critical"}[5m]) > 0
         for: 1m
         labels:
           severity: critical
@@ -83,11 +83,13 @@ groups:
 
       # Policy Violations
       - alert: PolicyViolations
-        expr: increase(devflow_policy_violations_total[5m]) > 10
+        expr: increase(soma-squad-ai_policy_violations_total[5m]) > 10
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "High number of policy violations"
           description: "{{ $value }} violations in last 5 minutes"
+
+
 

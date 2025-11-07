@@ -33,7 +33,7 @@ export const projectCommands = {
   },
 
   async create() {
-    console.log(chalk.yellow('Use "devflow init" to create a project configuration first'));
+    console.log(chalk.yellow('Use "soma-squad-ai init" to create a project configuration first'));
   },
 
   async show(id: string) {

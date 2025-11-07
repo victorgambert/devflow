@@ -1,0 +1,146 @@
+{{- if .Values.worker.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "soma-squad-ai.fullname" . }}-worker
+  labels:
+    {{- include "soma-squad-ai.worker.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.worker.autoscaling.enabled }}
+  replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "soma-squad-ai.worker.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/worker/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/worker/secret.yaml") . | sha256sum }}
+        {{- with .Values.worker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "soma-squad-ai.worker.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- include "soma-squad-ai.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "soma-squad-ai.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.worker.podSecurityContext | nindent 8 }}
+      containers:
+      - name: worker
+        securityContext:
+          {{- toYaml .Values.worker.securityContext | nindent 12 }}
+        image: {{ include "soma-squad-ai.worker.image" . }}
+        imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+        ports:
+        - name: metrics
+          containerPort: {{ .Values.worker.env.METRICS_PORT | default 9464 }}
+          protocol: TCP
+        env:
+        # Environment variables
+        - name: NODE_ENV
+          value: {{ .Values.worker.env.NODE_ENV | quote }}
+        - name: LOG_LEVEL
+          value: {{ .Values.worker.env.LOG_LEVEL | quote }}
+        - name: METRICS_PORT
+          value: {{ .Values.worker.env.METRICS_PORT | quote }}
+        
+        # Database
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.database.existingSecret }}
+              key: {{ .Values.global.database.secretKeys.username }}
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.database.existingSecret }}
+              key: {{ .Values.global.database.secretKeys.password }}
+        - name: DATABASE_URL
+          value: {{ include "soma-squad-ai.database.url" . | quote }}
+        
+        # Redis
+        {{- if .Values.global.redis.existingSecret }}
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.redis.existingSecret }}
+              key: {{ .Values.global.redis.secretKeys.password }}
+        {{- end }}
+        - name: REDIS_URL
+          value: {{ include "soma-squad-ai.redis.url" . | quote }}
+        
+        # Temporal
+        - name: TEMPORAL_ADDRESS
+          value: {{ include "soma-squad-ai.temporal.address" . | quote }}
+        - name: TEMPORAL_NAMESPACE
+          value: {{ .Values.global.temporal.namespace | quote }}
+        - name: TEMPORAL_TASK_QUEUE
+          value: {{ .Values.worker.env.TEMPORAL_TASK_QUEUE | quote }}
+        - name: TEMPORAL_MAX_CONCURRENT_ACTIVITIES
+          value: {{ .Values.worker.env.TEMPORAL_MAX_CONCURRENT_ACTIVITIES | quote }}
+        - name: TEMPORAL_MAX_CONCURRENT_WORKFLOWS
+          value: {{ .Values.worker.env.TEMPORAL_MAX_CONCURRENT_WORKFLOWS | quote }}
+        {{- if .Values.global.temporal.existingSecret }}
+        - name: TEMPORAL_TLS_CERT
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.temporal.existingSecret }}
+              key: {{ .Values.global.temporal.secretKeys.tls_cert }}
+        - name: TEMPORAL_TLS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.global.temporal.existingSecret }}
+              key: {{ .Values.global.temporal.secretKeys.tls_key }}
+        {{- end }}
+        
+        # Secrets
+        {{- range .Values.worker.secrets }}
+        - name: {{ .name }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .secretName }}
+              key: {{ .secretKey }}
+        {{- end }}
+        
+        # Observability
+        - name: OTEL_COLLECTOR_URL
+          value: "http://{{ include "soma-squad-ai.fullname" . }}-otel-collector:4318"
+        - name: SERVICE_NAME
+          value: "soma-squad-ai-worker"
+        - name: SERVICE_VERSION
+          value: {{ .Chart.AppVersion | quote }}
+        
+        livenessProbe:
+          {{- toYaml .Values.worker.livenessProbe | nindent 12 }}
+        readinessProbe:
+          {{- toYaml .Values.worker.readinessProbe | nindent 12 }}
+        resources:
+          {{- toYaml .Values.worker.resources | nindent 12 }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /app/.cache
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+
+
+

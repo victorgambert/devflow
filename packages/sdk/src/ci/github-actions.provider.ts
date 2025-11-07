@@ -11,7 +11,7 @@ import {
   CoverageReport,
   CIStatus,
   createLogger,
-} from '@devflow/common';
+} from '@soma-squad-ai/common';
 
 import { CIDriver } from './ci.interface';
 
@@ -44,20 +44,20 @@ export class GitHubActionsProvider implements CIDriver {
       status: this.mapStatus(job.status, job.conclusion),
       startedAt: job.started_at ? new Date(job.started_at) : undefined,
       completedAt: job.completed_at ? new Date(job.completed_at) : undefined,
-      duration: this.calculateDuration(job.started_at, job.completed_at),
-      url: job.html_url,
+      duration: this.calculateDuration(job.started_at ?? undefined, job.completed_at ?? undefined),
+      url: job.html_url || '',
     }));
 
     return {
       id: String(run.id),
-      name: run.name,
+      name: run.name || '',
       status: this.mapStatus(run.status, run.conclusion),
-      branch: run.head_branch,
+      branch: run.head_branch || '',
       commit: run.head_sha,
       startedAt: run.run_started_at ? new Date(run.run_started_at) : undefined,
       completedAt: run.updated_at ? new Date(run.updated_at) : undefined,
-      duration: this.calculateDuration(run.run_started_at, run.updated_at),
-      url: run.html_url,
+      duration: this.calculateDuration(run.run_started_at ?? undefined, run.updated_at),
+      url: run.html_url || '',
       jobs,
     };
   }
@@ -154,8 +154,8 @@ export class GitHubActionsProvider implements CIDriver {
       status: this.mapStatus(job.status, job.conclusion),
       startedAt: job.started_at ? new Date(job.started_at) : undefined,
       completedAt: job.completed_at ? new Date(job.completed_at) : undefined,
-      duration: this.calculateDuration(job.started_at, job.completed_at),
-      url: job.html_url,
+      duration: this.calculateDuration(job.started_at ?? undefined, job.completed_at ?? undefined),
+      url: job.html_url || '',
     };
   }
 
@@ -251,7 +251,7 @@ export class GitHubActionsProvider implements CIDriver {
     };
   }
 
-  private mapStatus(status: string, conclusion: string | null): CIStatus {
+  private mapStatus(status: string | null, conclusion: string | null): CIStatus {
     if (status === 'completed') {
       if (conclusion === 'success') return CIStatus.SUCCESS;
       if (conclusion === 'failure') return CIStatus.FAILURE;

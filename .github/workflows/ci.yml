@@ -1,4 +1,4 @@
-name: DevFlow CI
+name: Soma Squad AI CI
 
 on:
   push:
@@ -49,5 +49,5 @@ jobs:
         with:
           files: ./coverage/coverage-final.json
           flags: unittests
-          name: devflow-coverage
+          name: soma-squad-ai-coverage
 

@@ -5,7 +5,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createLogger } from '@devflow/common';
+import { createLogger } from '@soma-squad-ai/common';
 import { auditLogger, AuditEventType } from './audit.logger';
 
 const logger = createLogger('SecurityScanner');
@@ -386,4 +386,6 @@ export class SecurityScanner {
     return secretsFound;
   }
 }
+
+
 

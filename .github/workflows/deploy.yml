@@ -1,4 +1,4 @@
-# DevFlow CI/CD Pipeline - Phase 6
+# Soma Squad AI CI/CD Pipeline - Phase 6
 # Build, Push, and Deploy to Kubernetes
 
 name: Deploy
@@ -59,7 +59,7 @@ jobs:
       - name: Test
         run: pnpm test:coverage
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/devflow_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/soma-squad-ai_test
           REDIS_URL: redis://localhost:6379
 
       - name: Upload coverage
@@ -134,7 +134,7 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     environment:
       name: development
-      url: https://api-dev.devflow.io
+      url: https://api-dev.soma-squad-ai.io
 
     steps:
       - name: Checkout code
@@ -157,10 +157,10 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          helm upgrade --install devflow ./infra/helm/devflow \
-            --namespace devflow-dev \
+          helm upgrade --install soma-squad-ai ./infra/helm/soma-squad-ai \
+            --namespace soma-squad-ai-dev \
             --create-namespace \
-            --values ./infra/helm/devflow/values.yaml \
+            --values ./infra/helm/soma-squad-ai/values.yaml \
             --set global.environment=development \
             --set api.image.tag=develop-${{ github.sha }} \
             --set worker.image.tag=develop-${{ github.sha }} \
@@ -169,8 +169,8 @@ jobs:
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/devflow-api -n devflow-dev --timeout=5m
-          kubectl rollout status deployment/devflow-worker -n devflow-dev --timeout=5m
+          kubectl rollout status deployment/soma-squad-ai-api -n soma-squad-ai-dev --timeout=5m
+          kubectl rollout status deployment/soma-squad-ai-worker -n soma-squad-ai-dev --timeout=5m
 
   # ============================================
   # Deploy to Staging
@@ -181,7 +181,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: staging
-      url: https://api-staging.devflow.io
+      url: https://api-staging.soma-squad-ai.io
 
     steps:
       - name: Checkout code
@@ -208,11 +208,11 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          helm upgrade --install devflow ./infra/helm/devflow \
-            --namespace devflow-staging \
+          helm upgrade --install soma-squad-ai ./infra/helm/soma-squad-ai \
+            --namespace soma-squad-ai-staging \
             --create-namespace \
-            --values ./infra/helm/devflow/values.yaml \
-            --values ./infra/helm/devflow/values-staging.yaml \
+            --values ./infra/helm/soma-squad-ai/values.yaml \
+            --values ./infra/helm/soma-squad-ai/values-staging.yaml \
             --set api.image.tag=${{ steps.version.outputs.VERSION }} \
             --set worker.image.tag=${{ steps.version.outputs.VERSION }} \
             --wait \
@@ -220,13 +220,13 @@ jobs:
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/devflow-api -n devflow-staging --timeout=5m
-          kubectl rollout status deployment/devflow-worker -n devflow-staging --timeout=5m
+          kubectl rollout status deployment/soma-squad-ai-api -n soma-squad-ai-staging --timeout=5m
+          kubectl rollout status deployment/soma-squad-ai-worker -n soma-squad-ai-staging --timeout=5m
 
       - name: Run smoke tests
         run: |
-          curl -f https://api-staging.devflow.io/healthz || exit 1
-          curl -f https://api-staging.devflow.io/metrics || exit 1
+          curl -f https://api-staging.soma-squad-ai.io/healthz || exit 1
+          curl -f https://api-staging.soma-squad-ai.io/metrics || exit 1
 
   # ============================================
   # Deploy to Production
@@ -237,7 +237,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: production
-      url: https://api.devflow.io
+      url: https://api.soma-squad-ai.io
 
     steps:
       - name: Checkout code
@@ -264,10 +264,10 @@ jobs:
 
       - name: Deploy with Helm
         run: |
-          helm upgrade --install devflow ./infra/helm/devflow \
-            --namespace devflow-prod \
+          helm upgrade --install soma-squad-ai ./infra/helm/soma-squad-ai \
+            --namespace soma-squad-ai-prod \
             --create-namespace \
-            --values ./infra/helm/devflow/values-prod.yaml \
+            --values ./infra/helm/soma-squad-ai/values-prod.yaml \
             --set api.image.tag=${{ steps.version.outputs.VERSION }} \
             --set worker.image.tag=${{ steps.version.outputs.VERSION }} \
             --wait \
@@ -275,13 +275,13 @@ jobs:
 
       - name: Verify deployment
         run: |
-          kubectl rollout status deployment/devflow-api -n devflow-prod --timeout=10m
-          kubectl rollout status deployment/devflow-worker -n devflow-prod --timeout=10m
+          kubectl rollout status deployment/soma-squad-ai-api -n soma-squad-ai-prod --timeout=10m
+          kubectl rollout status deployment/soma-squad-ai-worker -n soma-squad-ai-prod --timeout=10m
 
       - name: Run smoke tests
         run: |
-          curl -f https://api.devflow.io/healthz || exit 1
-          curl -f https://api.devflow.io/metrics || exit 1
+          curl -f https://api.soma-squad-ai.io/healthz || exit 1
+          curl -f https://api.soma-squad-ai.io/metrics || exit 1
 
       - name: Notify success
         if: success()
@@ -320,4 +320,6 @@ jobs:
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'trivy-results.sarif'
+
+
 

@@ -1,10 +1,10 @@
 {
-  "name": "devflow",
+  "name": "soma-squad-ai",
   "version": "1.0.0",
   "private": true,
   "description": "Universal DevOps orchestrator - Notion to Production automation",
-  "keywords": ["devops", "automation", "orchestrator", "temporal", "nestjs"],
-  "author": "DevFlow Team",
+  "keywords": ["devops", "automation", "orchestrator", "temporal", "nestjs", "ai"],
+  "author": "Soma Squad AI Team",
   "license": "MIT",
   "engines": {
     "node": ">=20.0.0",
@@ -12,13 +12,13 @@
   },
   "packageManager": "pnpm@8.15.0",
   "scripts": {
-    "dev": "pnpm --filter @devflow/api dev",
-    "dev:worker": "pnpm --filter @devflow/worker dev",
+    "dev": "pnpm --filter @soma-squad-ai/api dev",
+    "dev:worker": "pnpm --filter @soma-squad-ai/worker dev",
     "build": "pnpm -r build",
-    "build:api": "pnpm --filter @devflow/api build",
-    "build:worker": "pnpm --filter @devflow/worker build",
-    "build:sdk": "pnpm --filter @devflow/sdk build",
-    "build:cli": "pnpm --filter @devflow/cli build",
+    "build:api": "pnpm --filter @soma-squad-ai/api build",
+    "build:worker": "pnpm --filter @soma-squad-ai/worker build",
+    "build:sdk": "pnpm --filter @soma-squad-ai/sdk build",
+    "build:cli": "pnpm --filter @soma-squad-ai/cli build",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yml,yaml}\"",
@@ -30,8 +30,8 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
-    "db:migrate": "pnpm --filter @devflow/api db:migrate",
-    "db:seed": "pnpm --filter @devflow/api db:seed"
+    "db:migrate": "pnpm --filter @soma-squad-ai/api db:migrate",
+    "db:seed": "pnpm --filter @soma-squad-ai/api db:seed"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",

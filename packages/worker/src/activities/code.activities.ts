@@ -2,8 +2,9 @@
  * Code Generation Activities
  */
 
-import { createLogger, generateBranchName } from '@devflow/common';
-import { createCodeAgentDriver } from '@devflow/sdk';
+import { createLogger, generateBranchName } from '@soma-squad-ai/common';
+import { createCodeAgentDriver, extractCodeGenerationContext, formatContextForAI } from '@soma-squad-ai/sdk';
+import { analyzeRepositoryContext } from './codebase.activities';
 
 const logger = createLogger('CodeActivities');
 
@@ -27,6 +28,24 @@ export async function generateCode(input: GenerateCodeInput): Promise<GenerateCo
   logger.info('Generating code', input);
 
   try {
+    // Analyze codebase context
+    logger.info('Analyzing repository context');
+    const codebaseContext = await analyzeRepositoryContext({
+      projectId: input.projectId,
+      taskDescription: input.task.description,
+    });
+
+    // Extract relevant context for code generation
+    const codeContext = extractCodeGenerationContext(codebaseContext);
+
+    logger.info('Repository context analyzed', {
+      language: codebaseContext.structure.language,
+      framework: codebaseContext.structure.framework,
+      dependencies: codeContext.dependencies.length,
+      conventions: codeContext.conventions.length,
+      relevantFiles: codeContext.relevantFiles.length,
+    });
+
     const agent = createCodeAgentDriver({
       provider: 'anthropic',
       apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -34,8 +53,10 @@ export async function generateCode(input: GenerateCodeInput): Promise<GenerateCo
 
     const code = await agent.generateCode({
       spec: input.spec,
-      projectStructure: '// Project structure',
-      relevantFiles: [],
+      projectStructure: codeContext.projectStructure,
+      relevantFiles: codeContext.relevantFiles,
+      conventions: codeContext.conventions,
+      dependencies: codeContext.dependencies,
       task: input.task,
     });
 

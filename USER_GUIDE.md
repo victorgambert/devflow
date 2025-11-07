@@ -1,15 +1,15 @@
-# 🚀 DevFlow - Guide Utilisateur
+# 🚀 Soma Squad AI - Guide Utilisateur
 
 **Votre développement, de A à Z, automatisé.**
 
 ---
 
-## 💡 Qu'est-ce que DevFlow ?
+## 💡 Qu'est-ce que Soma Squad AI ?
 
-**DevFlow transforme vos tâches Notion en code déployé, automatiquement.**
+**Soma Squad AI transforme vos tâches Notion en code déployé, automatiquement.**
 
 Vous créez une tâche dans Notion avec une description et des critères de validation.  
-DevFlow s'occupe du reste : 
+Soma Squad AI s'occupe du reste : 
 - Rédaction de la spec technique
 - Écriture du code
 - Création de la Pull Request
@@ -22,11 +22,11 @@ DevFlow s'occupe du reste :
 
 ---
 
-## 🎯 À qui s'adresse DevFlow ?
+## 🎯 À qui s'adresse Soma Squad AI ?
 
 ### Pour les équipes tech
 - **Product Managers** : Décrivez vos features en langage naturel, obtenez du code fonctionnel.
-- **Développeurs** : Concentrez-vous sur l'architecture et la revue, laissez l'implémentation à DevFlow.
+- **Développeurs** : Concentrez-vous sur l'architecture et la revue, laissez l'implémentation à Soma Squad AI.
 - **QA Engineers** : Tests automatiques, détection de flakiness, rapports complets.
 - **Tech Leads** : Visibilité complète, SLA tracking, contrôle qualité automatique.
 
@@ -37,7 +37,7 @@ DevFlow s'occupe du reste :
 
 ---
 
-## ✨ Ce que DevFlow fait pour vous
+## ✨ Ce que Soma Squad AI fait pour vous
 
 ### 🤖 Développement Autonome
 
@@ -51,7 +51,7 @@ Critères :
 - Afficher "Aucun résultat" si vide
 ```
 
-**DevFlow livre** :
+**Soma Squad AI livre** :
 - Une spec technique détaillée
 - Le code frontend (React/Vue/Angular)
 - Le code backend si nécessaire
@@ -66,7 +66,7 @@ Critères :
 
 ### 🧪 Qualité Garantie
 
-DevFlow ne livre pas du code "qui compile". Il livre du code **qui fonctionne**.
+Soma Squad AI ne livre pas du code "qui compile". Il livre du code **qui fonctionne**.
 
 **Tests automatiques** :
 - Tests unitaires générés pour chaque fonction
@@ -155,7 +155,7 @@ Les previews sont **automatiquement supprimées** quand vous mergez ou fermez la
 
 ### 💰 Coûts Maîtrisés
 
-DevFlow utilise des modèles LLM (Claude, GPT-4) pour générer le code. Ces API sont payantes.
+Soma Squad AI utilise des modèles LLM (Claude, GPT-4) pour générer le code. Ces API sont payantes.
 
 **Optimisation automatique** :
 - Routage intelligent vers le provider le moins cher
@@ -185,20 +185,20 @@ DevFlow utilise des modèles LLM (Claude, GPT-4) pour générer le code. Ces API
 
 ```bash
 # Installer la CLI
-npm install -g @devflow/cli
+npm install -g @soma-squad-ai/cli
 
 # Initialiser dans votre projet
 cd mon-projet
-devflow init
+soma-squad-ai init
 
 # Connecter Notion
-devflow connect notion
+soma-squad-ai connect notion
 
 # Connecter GitHub (ou GitLab/Bitbucket)
-devflow connect github
+soma-squad-ai connect github
 ```
 
-✅ **Configuration terminée !** DevFlow surveille maintenant votre base Notion.
+✅ **Configuration terminée !** Soma Squad AI surveille maintenant votre base Notion.
 
 ---
 
@@ -224,21 +224,21 @@ Le CSV doit contenir : nom, email, date d'inscription, statut.
 - [ ] Message de succès après téléchargement
 ```
 
-**Status** : TODO → DevFlow détecte et démarre
+**Status** : TODO → Soma Squad AI détecte et démarre
 
 ---
 
-### 3️⃣ DevFlow prend le relais
+### 3️⃣ Soma Squad AI prend le relais
 
 **Ce qui se passe (vous n'avez rien à faire)** :
 
-1. **Spec** (2-5 min) : DevFlow génère une spec technique détaillée
+1. **Spec** (2-5 min) : Soma Squad AI génère une spec technique détaillée
 2. **Code** (5-15 min) : Le code est écrit (frontend + backend si besoin)
 3. **PR** (30 sec) : Une Pull Request est créée sur GitHub
 4. **CI** (5-10 min) : Vos tests CI tournent (lint, unit, e2e)
 5. **Preview** (2-5 min) : Une URL de preview est générée
-6. **QA** (3-5 min) : DevFlow vérifie les acceptance criteria
-7. **Fix** (si nécessaire) : Si des tests échouent, DevFlow corrige
+6. **QA** (3-5 min) : Soma Squad AI vérifie les acceptance criteria
+7. **Fix** (si nécessaire) : Si des tests échouent, Soma Squad AI corrige
 8. **Notification** : Slack vous informe "✅ TASK-123 prête à review"
 
 **Durée totale** : 15-30 minutes en moyenne (vs plusieurs heures/jours manuellement)
@@ -261,7 +261,7 @@ Le CSV doit contenir : nom, email, date d'inscription, statut.
 **Option 2 : Auto-merge** (si configuré)
 - Si tous les tests passent
 - Si tous les AC sont validés
-- DevFlow merge automatiquement
+- Soma Squad AI merge automatiquement
 
 ---
 
@@ -280,34 +280,34 @@ Le CSV doit contenir : nom, email, date d'inscription, statut.
 
 ```bash
 # Voir le statut d'un ticket
-devflow status TASK-123
+soma-squad-ai status TASK-123
 
 # Relancer une étape spécifique
-devflow run TASK-123 --step dev
+soma-squad-ai run TASK-123 --step dev
 
 # Vérifier la santé du système
-devflow doctor
+soma-squad-ai doctor
 
 # Générer un template CI pour votre projet
-devflow templates ci --provider github
+soma-squad-ai templates ci --provider github
 ```
 
 ### Via Slack
 
 ```bash
 # Voir le statut
-/devflow status TASK-123
+/soma-squad-ai status TASK-123
 
 # Relancer un workflow
-/devflow retry TASK-123
+/soma-squad-ai retry TASK-123
 
 # Assigner à quelqu'un
-/devflow assign TASK-123 @john.doe
+/soma-squad-ai assign TASK-123 @john.doe
 ```
 
 ### Via l'Admin UI
 
-Accédez à `https://admin.devflow.io` :
+Accédez à `https://admin.soma-squad-ai.io` :
 - **Dashboard** : Vue d'ensemble (tickets actifs, durées, coûts)
 - **Tickets** : Liste filtrable + détails par ticket
 - **Billing** : Usage, factures, paiements
@@ -315,9 +315,9 @@ Accédez à `https://admin.devflow.io` :
 
 ---
 
-## ⚙️ Configuration (fichier `.devflow.yml`)
+## ⚙️ Configuration (fichier `.soma-squad-ai.yml`)
 
-À la racine de votre projet, créez `.devflow.yml` :
+À la racine de votre projet, créez `.soma-squad-ai.yml` :
 
 ```yaml
 project:
@@ -355,7 +355,7 @@ notifications:
     channel: "#dev-notifications"
 ```
 
-**C'est tout !** DevFlow adapte son comportement à votre projet.
+**C'est tout !** Soma Squad AI adapte son comportement à votre projet.
 
 ---
 
@@ -374,7 +374,7 @@ AC:
 - [ ] Toast "Lien copié" si Copy link
 ```
 
-**Résultat DevFlow (20 minutes)** :
+**Résultat Soma Squad AI (20 minutes)** :
 - Composant `ShareButton.tsx` créé
 - Icons Twitter/LinkedIn ajoutés
 - Tests unitaires du composant
@@ -398,7 +398,7 @@ AC:
 - [ ] Responsive (mobile + desktop)
 ```
 
-**Résultat DevFlow (45 minutes)** :
+**Résultat Soma Squad AI (45 minutes)** :
 - Route backend `/api/analytics` avec auth admin
 - Requêtes SQL optimisées
 - Page React avec 3 cartes + graphique (Recharts)
@@ -422,7 +422,7 @@ AC:
 - [ ] Taille des boutons suffisante (44x44px min)
 ```
 
-**Résultat DevFlow (15 minutes)** :
+**Résultat Soma Squad AI (15 minutes)** :
 - Analyse du code existant (`Pagination.tsx`)
 - Correction CSS (touch-action, min-height)
 - Tests E2E mobile (viewport 375px)
@@ -433,7 +433,7 @@ AC:
 
 ## 🏢 Gestion Multi-Tenant (Organisations)
 
-DevFlow supporte plusieurs organisations avec :
+Soma Squad AI supporte plusieurs organisations avec :
 
 **Isolation complète** :
 - Chaque org a ses propres projets
@@ -469,7 +469,7 @@ DevFlow supporte plusieurs organisations avec :
 
 ## 📈 Métriques & SLA
 
-DevFlow suit automatiquement :
+Soma Squad AI suit automatiquement :
 
 **Métriques par ticket** :
 - Temps total (de TODO à Done)
@@ -497,14 +497,14 @@ DevFlow suit automatiquement :
 **Besoin d'aide ?**
 
 - **Documentation** : Ce guide
-- **Status d'un ticket** : `devflow status TASK-123`
-- **Health check** : `devflow doctor`
+- **Status d'un ticket** : `soma-squad-ai status TASK-123`
+- **Health check** : `soma-squad-ai doctor`
 - **Slack/Discord** : Rejoignez notre communauté
-- **Email** : support@devflow.io
+- **Email** : support@soma-squad-ai.io
 - **Admin UI** : Live chat intégré
 
 **Incident ?**
-- Dashboard status : status.devflow.io
+- Dashboard status : status.soma-squad-ai.io
 - Uptime : 99.9% garanti
 - Alertes automatiques si downtime
 
@@ -566,7 +566,7 @@ Corriger le formulaire.
 
 ## 🎁 Avantages Concrets
 
-### Avant DevFlow
+### Avant Soma Squad AI
 
 - ⏱️ **2-3 jours** pour livrer une feature simple
 - 🐛 **Bugs fréquents** en production (manque de tests)
@@ -574,12 +574,12 @@ Corriger le formulaire.
 - 💸 **Coût élevé** : Plus de devs nécessaires
 - 🤷 **Manque de visibilité** : "C'est où cette feature ?"
 
-### Après DevFlow
+### Après Soma Squad AI
 
 - ⚡ **15-30 minutes** pour livrer une feature simple
 - ✅ **Qualité garantie** : Tests auto, couverture 80%+
-- 😌 **Sérénité** : DevFlow livre à temps, vous validez
-- 💰 **ROI positif** : Coût DevFlow < coût d'un dev
+- 😌 **Sérénité** : Soma Squad AI livre à temps, vous validez
+- 💰 **ROI positif** : Coût Soma Squad AI < coût d'un dev
 - 📊 **Visibilité totale** : Dashboard, metrics, SLA
 
 ---
@@ -588,26 +588,26 @@ Corriger le formulaire.
 
 ### Essai gratuit (14 jours)
 
-1. **Créez un compte** : https://app.devflow.io/signup
+1. **Créez un compte** : https://app.soma-squad-ai.io/signup
 2. **Connectez vos outils** : Notion + GitHub (5 minutes)
 3. **Créez une tâche test** : Feature simple pour tester
-4. **Observez la magie** : DevFlow livre en 20 minutes
+4. **Observez la magie** : Soma Squad AI livre en 20 minutes
 5. **Décidez** : Continuez ou annulez (pas de CB requise)
 
 ### Installation Self-Hosted
 
-Si vous préférez héberger DevFlow vous-même :
+Si vous préférez héberger Soma Squad AI vous-même :
 
 ```bash
 # Via Docker Compose
-git clone https://github.com/devflow/devflow.git
-cd devflow
+git clone https://github.com/soma-squad-ai/soma-squad-ai.git
+cd soma-squad-ai
 cp env.example .env
 docker-compose up -d
 
 # Via Kubernetes
-helm install devflow ./helm/devflow \
-  --namespace=devflow \
+helm install soma-squad-ai ./helm/soma-squad-ai \
+  --namespace=soma-squad-ai \
   --values=values.yaml
 ```
 
@@ -624,18 +624,20 @@ helm install devflow ./helm/devflow \
 - Pro : $1,999/an
 - Enterprise : Sur mesure
 
-👉 **Essayez gratuitement** : https://app.devflow.io/signup
+👉 **Essayez gratuitement** : https://app.soma-squad-ai.io/signup
 
 ---
 
 ## 📞 Contact
 
-- **Site** : https://devflow.io
-- **Email** : hello@devflow.io
-- **Slack** : [Rejoindre la communauté](https://devflow.io/slack)
-- **Twitter** : [@devflow](https://twitter.com/devflow)
+- **Site** : https://soma-squad-ai.io
+- **Email** : hello@soma-squad-ai.io
+- **Slack** : [Rejoindre la communauté](https://soma-squad-ai.io/slack)
+- **Twitter** : [@soma-squad-ai](https://twitter.com/soma-squad-ai)
 
 ---
 
-**DevFlow** - De Notion à Production, Automatiquement. 🚀
+**Soma Squad AI** - De Notion à Production, Automatiquement. 🚀
+
+
 

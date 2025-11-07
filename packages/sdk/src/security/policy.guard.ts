@@ -5,8 +5,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createLogger, ConfigurationError } from '@devflow/common';
-import { DevflowProfile } from '../project-adapter/devflow-profile.types';
+import { createLogger, ConfigurationError } from '@soma-squad-ai/common';
+import { SomaSquadAIProfile } from '../project-adapter/soma-squad-ai-profile.types';
 
 const logger = createLogger('PolicyGuard');
 
@@ -52,11 +52,11 @@ export interface BranchProtectionRules {
 // ============================================
 
 export class PolicyGuard {
-  private profile: DevflowProfile;
+  private profile: SomaSquadAIProfile;
   private workspacePath: string;
   private codeownersRules: CodeownersRule[] = [];
 
-  constructor(profile: DevflowProfile, workspacePath: string) {
+  constructor(profile: SomaSquadAIProfile, workspacePath: string) {
     this.profile = profile;
     this.workspacePath = workspacePath;
   }
@@ -378,4 +378,6 @@ export class PolicyGuard {
     return null;
   }
 }
+
+
 

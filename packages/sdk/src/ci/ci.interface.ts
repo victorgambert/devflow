@@ -2,7 +2,7 @@
  * CI Driver Interface - Abstraction for CI/CD systems
  */
 
-import { CIPipeline, CIJob, CIArtifact, TestResults, CoverageReport } from '@devflow/common';
+import { CIPipeline, CIJob, CIArtifact, TestResults, CoverageReport } from '@soma-squad-ai/common';
 
 export interface CIDriver {
   /**

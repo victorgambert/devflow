@@ -1,21 +1,19 @@
-version: '3.9'
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: devflow-postgres
+    container_name: soma-squad-ai-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: devflow
-      POSTGRES_USER: devflow
+      POSTGRES_DB: soma_squad_ai
+      POSTGRES_USER: soma_squad_ai
       POSTGRES_PASSWORD: changeme
     ports:
       - '5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U devflow']
+      test: ['CMD-SHELL', 'pg_isready -U soma_squad_ai']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,7 +21,7 @@ services:
   # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: devflow-redis
+    container_name: soma-squad-ai-redis
     restart: unless-stopped
     ports:
       - '6379:6379'
@@ -38,7 +36,7 @@ services:
   # Temporal Server
   temporal:
     image: temporalio/auto-setup:1.22.4
-    container_name: devflow-temporal
+    container_name: soma-squad-ai-temporal
     restart: unless-stopped
     ports:
       - '7233:7233'
@@ -46,10 +44,9 @@ services:
     environment:
       - DB=postgresql
       - DB_PORT=5432
-      - POSTGRES_USER=devflow
+      - POSTGRES_USER=soma_squad_ai
       - POSTGRES_PWD=changeme
       - POSTGRES_SEEDS=postgres
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,7 +56,7 @@ services:
   # Temporal Web UI
   temporal-ui:
     image: temporalio/ui:2.21.3
-    container_name: devflow-temporal-ui
+    container_name: soma-squad-ai-temporal-ui
     restart: unless-stopped
     ports:
       - '8080:8080'
@@ -69,21 +66,24 @@ services:
     depends_on:
       - temporal
 
-  # DevFlow API (NestJS)
+  # Soma Squad AI API (NestJS)
   api:
     build:
       context: .
       dockerfile: ./packages/api/Dockerfile
-    container_name: devflow-api
+    container_name: soma-squad-ai-api
     restart: unless-stopped
     ports:
       - '3000:3000'
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
+      - DATABASE_URL=postgresql://soma_squad_ai:changeme@postgres:5432/soma_squad_ai?schema=public
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_NAME=devflow
-      - DATABASE_USER=devflow
+      - DATABASE_NAME=soma_squad_ai
+      - DATABASE_USER=soma_squad_ai
       - DATABASE_PASSWORD=changeme
       - REDIS_HOST=redis
       - REDIS_PORT=6379
@@ -102,19 +102,22 @@ services:
       - /app/node_modules
       - /app/packages/api/node_modules
 
-  # DevFlow Worker (Temporal)
+  # Soma Squad AI Worker (Temporal)
   worker:
     build:
       context: .
       dockerfile: ./packages/worker/Dockerfile
-    container_name: devflow-worker
+    container_name: soma-squad-ai-worker
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
+      - DATABASE_URL=postgresql://soma_squad_ai:changeme@postgres:5432/soma_squad_ai?schema=public
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_NAME=devflow
-      - DATABASE_USER=devflow
+      - DATABASE_NAME=soma_squad_ai
+      - DATABASE_USER=soma_squad_ai
       - DATABASE_PASSWORD=changeme
       - REDIS_HOST=redis
       - REDIS_PORT=6379
