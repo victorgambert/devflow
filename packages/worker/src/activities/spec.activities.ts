@@ -5,6 +5,7 @@
 import { createLogger } from '@devflow/common';
 import { createCodeAgentDriver, extractSpecGenerationContext, formatContextForAI } from '@devflow/sdk';
 import { analyzeRepositoryContext } from './codebase.activities';
+import { generateSpecsWithMultiLLM } from './spec-multi-llm.activities';
 
 const logger = createLogger('SpecActivities');
 
@@ -26,6 +27,19 @@ export interface GenerateSpecificationOutput {
     conventions: number;
     similarCode: number;
     filesAnalyzed: string[];
+  };
+  // Multi-LLM results (if enabled)
+  multiLLM?: {
+    models: Array<{
+      model: string;
+      score: number;
+      reasoning: string;
+      summary: string;
+    }>;
+    chosenModel: string;
+    detailedExplanation: string;
+    agreementScore: number;
+    comparisonPoints: string[];
   };
 }
 
@@ -55,30 +69,68 @@ export async function generateSpecification(
       conventions: specContext.conventions.length,
     });
 
-    // Create AI agent via OpenRouter
-    const agent = createCodeAgentDriver({
-      provider: 'openrouter',
-      apiKey: process.env.OPENROUTER_API_KEY || '',
-      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
-    });
+    // Check if multi-LLM is enabled
+    const useMultiLLM = process.env.ENABLE_MULTI_LLM === 'true';
 
-    // Generate spec with real codebase context
-    const spec = await agent.generateSpec({
-      task: {
-        title: input.task.title,
-        description: input.task.description,
-        priority: input.task.priority,
-      },
-      project: {
-        language: specContext.language,
-        framework: specContext.framework,
-        dependencies: specContext.dependencies,
-        conventions: specContext.conventions,
-        patterns: specContext.patterns,
-      },
-      // Add full context as additional info
-      codebaseContext: formatContextForAI(codebaseContext),
-    });
+    let spec: any;
+    let multiLLMResults: any = undefined;
+
+    if (useMultiLLM) {
+      logger.info('Using multi-LLM generation (Claude + GPT-4 + Gemini)');
+
+      // Generate specs with multiple models in parallel
+      const multiResult = await generateSpecsWithMultiLLM({
+        task: input.task,
+        codebaseContext,
+        specContext,
+      });
+
+      spec = multiResult.bestSpec;
+      multiLLMResults = {
+        models: multiResult.allSpecs.map((s) => ({
+          model: s.model,
+          score: s.score,
+          reasoning: s.reasoning,
+          summary: s.summary,
+        })),
+        chosenModel: multiResult.synthesis.chosenModel,
+        detailedExplanation: multiResult.synthesis.detailedExplanation,
+        agreementScore: multiResult.synthesis.agreementScore,
+        comparisonPoints: multiResult.synthesis.comparisonPoints,
+      };
+
+      logger.info('Multi-LLM generation completed', {
+        chosenModel: multiResult.synthesis.chosenModel,
+        agreementScore: multiResult.synthesis.agreementScore,
+      });
+    } else {
+      logger.info('Using single LLM generation');
+
+      // Create AI agent via OpenRouter
+      const agent = createCodeAgentDriver({
+        provider: 'openrouter',
+        apiKey: process.env.OPENROUTER_API_KEY || '',
+        model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
+      });
+
+      // Generate spec with real codebase context
+      spec = await agent.generateSpec({
+        task: {
+          title: input.task.title,
+          description: input.task.description,
+          priority: input.task.priority,
+        },
+        project: {
+          language: specContext.language,
+          framework: specContext.framework,
+          dependencies: specContext.dependencies,
+          conventions: specContext.conventions,
+          patterns: specContext.patterns,
+        },
+        // Add full context as additional info
+        codebaseContext: formatContextForAI(codebaseContext),
+      });
+    }
 
     // Add context information to the result for transparency
     return {
@@ -91,6 +143,7 @@ export async function generateSpecification(
         similarCode: codebaseContext.similarCode.length,
         filesAnalyzed: codebaseContext.similarCode.map((code) => code.path),
       },
+      multiLLM: multiLLMResults,
     };
   } catch (error) {
     logger.error('Failed to generate specification', error as Error);

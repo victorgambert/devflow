@@ -160,6 +160,18 @@ export async function appendSpecToLinearIssue(input: {
     similarCode: number;
     filesAnalyzed?: string[];
   };
+  multiLLM?: {
+    models: Array<{
+      model: string;
+      score: number;
+      reasoning: string;
+      summary: string;
+    }>;
+    chosenModel: string;
+    detailedExplanation: string;
+    agreementScore: number;
+    comparisonPoints: string[];
+  };
 }): Promise<void> {
   logger.info('Appending spec to Linear issue', { linearId: input.linearId });
 
@@ -197,6 +209,42 @@ export async function appendSpecToLinearIssue(input: {
       }
 
       markdown += '\n> Cette spécification a été générée en analysant le contexte ci-dessus pour suivre les patterns existants du projet.\n';
+    }
+
+    // Add multi-LLM comparison section if used
+    if (input.multiLLM) {
+      markdown += '\n\n---\n\n';
+      markdown += '## 🤖 Analyse Multi-LLM\n\n';
+
+      // Detailed explanation
+      markdown += input.multiLLM.detailedExplanation;
+      markdown += '\n\n';
+
+      // Comparison points
+      if (input.multiLLM.comparisonPoints.length > 0) {
+        markdown += '### Comparaison des modèles:\n\n';
+        input.multiLLM.comparisonPoints.forEach((point) => {
+          markdown += `${point}\n`;
+        });
+        markdown += '\n';
+      }
+
+      // Sort models by score descending
+      const sortedModels = [...input.multiLLM.models].sort((a, b) => b.score - a.score);
+
+      // Summaries of each model's plan
+      markdown += '---\n\n';
+      markdown += '### 📊 Résumés des plans proposés\n\n';
+
+      sortedModels.forEach((model, index) => {
+        const emoji = model.model === input.multiLLM!.chosenModel ? '🏆' : '📝';
+        markdown += `#### ${emoji} Plan ${index + 1}: ${model.model.split('/')[1] || model.model}\n\n`;
+        markdown += model.summary;
+        markdown += '\n\n';
+      });
+
+      markdown += '---\n\n';
+      markdown += '> 🎯 Cette spécification a été générée par **3 LLMs en parallèle** (Claude Sonnet 4, GPT-4, Gemini 2.0) et le meilleur résultat a été automatiquement sélectionné basé sur la complétude, la pertinence au contexte, et la qualité des étapes d\'implémentation.\n';
     }
 
     // Append to issue description

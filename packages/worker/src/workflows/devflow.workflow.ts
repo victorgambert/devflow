@@ -83,11 +83,12 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       },
     });
 
-    // Append spec to Linear issue description as markdown with codebase context
+    // Append spec to Linear issue description as markdown with codebase context and multi-LLM results
     await appendSpecToLinearIssue({
       linearId: task.linearId,
       spec: spec,
       codebaseContext: spec.contextUsed,
+      multiLLM: spec.multiLLM,
     });
 
     // Append warning comment about auto-generated specs
