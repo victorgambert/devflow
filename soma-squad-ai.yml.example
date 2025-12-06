@@ -11,22 +11,22 @@ project:
   language: typescript # typescript, javascript, python, php, go, rust, etc.
   framework: nextjs # nextjs, nestjs, django, laravel, express, etc.
 
-# Notion integration
-notion:
+# Linear integration
+linear:
   enabled: true
-  database_id: ${NOTION_DATABASE_ID}
-  # Map Notion properties to Soma Squad AI fields
-  field_mapping:
-    title: Name
-    status: Status
-    priority: Priority
-    assignee: Assignee
-    epic: Epic
-    story_points: Story Points
+  team_id: ${LINEAR_TEAM_ID}
+  # Map Linear status to Soma Squad AI workflow
+  status_mapping:
+    trigger_status: Specification
+    in_progress: In Progress
+    in_review: In Review
+    testing: Testing
+    done: Done
+    blocked: Blocked
 
 # VCS Configuration
 vcs:
-  provider: github # github, gitlab, bitbucket
+  provider: github # github
   base_branch: main
   # Branch naming convention
   branch_pattern: 'feature/{task-id}-{task-slug}'
@@ -64,7 +64,7 @@ commands:
 
 # CI/CD Integration
 ci:
-  provider: github-actions # github-actions, gitlab-ci, bitbucket-pipelines
+  provider: github-actions # github-actions
   # Path to CI config (Soma Squad AI will only read, not modify)
   config_path: .github/workflows/main.yml
   # Artifact paths to check
@@ -80,10 +80,10 @@ code_agent:
   # Prompt templates
   prompts:
     spec: |
-      Based on the following task from Notion:
+      Based on the following task from Linear:
       Title: {title}
       Description: {description}
-      
+
       Generate a technical specification with:
       1. Architecture decisions
       2. Implementation steps

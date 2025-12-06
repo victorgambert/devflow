@@ -40,7 +40,7 @@ model Project {
 }
 
 // ============================================
-// Tasks (from Notion)
+// Tasks (from Linear)
 // ============================================
 
 enum TaskStatus {
@@ -68,7 +68,7 @@ enum TaskPriority {
 model Task {
   id          String       @id @default(uuid())
   projectId   String       @map("project_id")
-  notionId    String?      @unique @map("notion_id")
+  linearId    String?      @unique @map("linear_id")
   
   // Task details
   title       String
@@ -82,7 +82,7 @@ model Task {
   storyPoints Int?         @map("story_points")
   labels      String[]     @default([])
   
-  // Metadata (additional fields from Notion)
+  // Metadata (additional fields from Linear)
   metadata    Json?
   
   // Timestamps
@@ -96,7 +96,7 @@ model Task {
   
   @@map("tasks")
   @@index([projectId])
-  @@index([notionId])
+  @@index([linearId])
   @@index([status])
   @@index([priority])
 }
@@ -151,7 +151,7 @@ enum WorkflowStatus {
 }
 
 enum WorkflowStage {
-  NOTION_SYNC
+  LINEAR_SYNC
   SPEC_GENERATION
   CODE_GENERATION
   PR_CREATION
@@ -308,7 +308,7 @@ model CIRun {
   runId         String    @map("run_id")
   runUrl        String    @map("run_url")
   
-  provider      String    // github-actions, gitlab-ci, etc.
+  provider      String    // github-actions, etc.
   status        CIStatus  @default(PENDING)
   
   // Metadata
@@ -579,9 +579,9 @@ model OrganizationProject {
   projectId      String   @map("project_id")
   
   // Project-specific settings
-  notionDbId     String?  @map("notion_db_id")
-  vcsDriver      String?  @map("vcs_driver")  // github, gitlab, bitbucket
-  ciDriver       String?  @map("ci_driver")   // github-actions, gitlab-ci, bitbucket-pipelines
+  linearTeamId   String?  @map("linear_team_id")
+  vcsDriver      String?  @map("vcs_driver")  // github
+  ciDriver       String?  @map("ci_driver")   // github-actions
   previewDriver  String?  @map("preview_driver") // vercel, render, fly, k8s
   
   createdAt      DateTime @default(now()) @map("created_at")

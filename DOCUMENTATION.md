@@ -1,7 +1,7 @@
 # 📚 Soma Squad AI - Documentation Complète
 
-**Version:** 1.12.0  
-**Dernière mise à jour:** 16 novembre 2025  
+**Version:** 1.12.1  
+**Dernière mise à jour:** 6 décembre 2025  
 **Statut:** Production Ready  
 
 ---
@@ -25,15 +25,15 @@
 
 ### Qu'est-ce que Soma Squad AI ?
 
-Soma Squad AI transforme vos tâches Notion en code déployé, automatiquement.
+Soma Squad AI transforme vos tâches Linear en code déployé, automatiquement.
 
 **Workflow complet :**
-1. Vous créez une tâche dans Notion avec une description
+1. Vous créez une tâche dans Linear avec une description
 2. Soma Squad AI analyse votre codebase via l'API GitHub
 3. Génère une spécification technique alignée avec vos conventions
 4. Écrit le code (frontend + backend si nécessaire)
 5. Crée les tests (unitaires + E2E)
-6. Ouvre une Pull Request sur GitHub/GitLab
+6. Ouvre une Pull Request sur GitHub
 7. Exécute les tests CI/CD
 8. Corrige automatiquement les erreurs si nécessaire
 9. Déploie une preview app
@@ -96,7 +96,7 @@ soma-squad-ai/
 ### Data Flow
 
 ```
-Notion Webhook → API → Temporal Workflow
+Linear Webhook → API → Temporal Workflow
     ↓
 Analyze Codebase (GitHub API)
     ↓
@@ -104,7 +104,7 @@ Generate Spec (Claude/GPT-4)
     ↓
 Generate Code (Claude/GPT-4)
     ↓
-Create Branch + Commit (GitHub/GitLab)
+Create Branch + Commit (GitHub)
     ↓
 Create PR/MR
     ↓
@@ -126,10 +126,8 @@ Auto-merge (si configuré)
 | Provider | Statut | Méthodes | Testé | Production |
 |----------|--------|----------|-------|------------|
 | **GitHub** | ✅ Complet | 13/13 | ✅ | ✅ |
-| **GitLab** | ✅ Complet | 13/13 | ✅ | ✅ |
-| **Bitbucket** | ❌ Non implémenté | 0/13 | ❌ | ❌ |
 
-**Méthodes GitHub/GitLab :**
+**Méthodes GitHub :**
 - ✅ getRepository()
 - ✅ getBranch()
 - ✅ createBranch()
@@ -156,10 +154,8 @@ Auto-merge (si configuré)
 | Provider | Statut | Méthodes | Testé | Production |
 |----------|--------|----------|-------|------------|
 | **GitHub Actions** | ✅ Complet | 10/10 | ✅ | ✅ |
-| **GitLab CI** | ✅ Complet | 10/10 | ✅ | ✅ |
-| **Bitbucket Pipelines** | ❌ Non implémenté | 0/10 | ❌ | ❌ |
 
-**Méthodes GitHub Actions/GitLab CI :**
+**Méthodes GitHub Actions :**
 - ✅ getPipeline()
 - ✅ getPipelines()
 - ✅ getPipelineForCommit()
@@ -191,7 +187,7 @@ Auto-merge (si configuré)
 
 | Fonctionnalité | Statut | Description |
 |----------------|--------|-------------|
-| **Repository Parsing** | ✅ | Parse URLs GitHub/GitLab/Bitbucket |
+| **Repository Parsing** | ✅ | Parse URLs GitHub |
 | **Structure Analysis** | ✅ | Détecte langage, framework, structure |
 | **Dependency Analysis** | ✅ | 6 langages supportés |
 | **Documentation Scanning** | ✅ | README, CONTRIBUTING, conventions |
@@ -210,15 +206,15 @@ Auto-merge (si configuré)
 - JavaScript/TypeScript: Next.js, Nuxt.js, React, Angular, Vue, Svelte, Remix, Gatsby, NestJS, Express, Fastify
 - Backend: Rust, Go, Python, PHP
 
-### Intégration Notion
+### Intégration Linear
 
 | Fonctionnalité | Statut | Description |
 |----------------|--------|-------------|
 | **Sync Tasks** | ✅ | Synchronisation bidirectionnelle |
 | **Status Updates** | ✅ | TODO, IN_PROGRESS, DONE, etc. |
-| **Append Spec** | ✅ | Ajoute spec au page Notion |
-| **Warning Message** | ✅ | Callout après génération spec |
-| **Comments** | ⚠️ | Partiellement implémenté |
+| **Append Spec** | ✅ | Ajoute spec à l'issue Linear |
+| **Warning Message** | ✅ | Commentaire après génération spec |
+| **Comments** | ✅ | Commentaires sur issues |
 
 ### Services Core
 
@@ -254,7 +250,7 @@ Auto-merge (si configuré)
 | `/projects/:id/link-repository` | POST | ✅ | Lier repository |
 | `/tasks` | POST | ✅ | Créer task |
 | `/tasks/:id` | GET | ✅ | Récupérer task |
-| `/webhooks/notion` | POST | ✅ | Webhook Notion |
+| `/webhooks/linear` | POST | ✅ | Webhook Linear |
 | `/webhooks/github` | POST | ⚠️ | Webhook GitHub (partiel) |
 
 ---
@@ -309,7 +305,7 @@ cd mon-projet
 soma-squad-ai init
 
 # Connecter vos outils
-soma-squad-ai connect notion
+soma-squad-ai connect linear
 soma-squad-ai connect github
 ```
 
@@ -337,13 +333,14 @@ ANTHROPIC_API_KEY=sk-ant-xxx
 OPENAI_API_KEY=sk-proj-xxx
 
 # ===================================
-# Notion
+# Linear
 # ===================================
-NOTION_API_KEY=secret_xxx
-NOTION_DATABASE_ID=xxx
+LINEAR_API_KEY=lin_api_xxx
+LINEAR_WEBHOOK_SECRET=xxx
 
-# Message warning après génération spec (optionnel)
-NOTION_SPEC_WARNING_MESSAGE="⚠️ Généré automatiquement par Soma Squad AI"
+# Status que Linear doit avoir pour déclencher le workflow (optionnel)
+LINEAR_TRIGGER_STATUS=Specification
+LINEAR_NEXT_STATUS=In Progress
 
 # ===================================
 # Database
@@ -405,7 +402,7 @@ notifications:
 
 ### Workflow Standard
 
-**1. Créer une tâche Notion :**
+**1. Créer une tâche Linear :**
 
 ```
 Titre: Ajouter export CSV
@@ -416,12 +413,12 @@ Acceptance Criteria:
 - [ ] Message de succès après export
 ```
 
-**2. Déplacer en status "SPECIFICATION" dans Notion**
+**2. Déplacer en status "Specification" dans Linear**
 
 **3. Soma Squad AI démarre automatiquement :**
 - Analyse votre codebase
 - Génère la spec technique
-- Ajoute un warning sur la page Notion
+- Ajoute un commentaire warning sur l'issue Linear
 - Génère le code
 - Crée une PR
 - Exécute les tests
@@ -466,6 +463,17 @@ curl -X POST http://localhost:3000/projects/PROJECT_ID/link-repository \
 
 ---
 
+## 🧭 Règles agents & documentation (Claude/Cursor)
+
+Checklist fin de tâche :
+- Toujours terminer par une étape «Documentation» après toute évolution (code, infra, CI, scripts, data, tests).
+- Mettre à jour les fichiers concernés : `DOCUMENTATION.md`, `CLAUDE.md`, README/notes du package impacté, scripts ou guides infra.
+- Dans la PR, ajouter `Documentation: mise à jour (fichiers)` ou `Documentation: N/A (raison)` en justifiant.
+- Pour tout nouveau workflow/commande, documenter l’usage attendu, les prérequis et les points de rollback.
+- Si aucune mise à jour n’est nécessaire, expliquer explicitement pourquoi (ex.: refactor purement interne).
+
+---
+
 ## 🔌 Providers Supportés
 
 ### GitHub (✅ Production Ready)
@@ -478,21 +486,6 @@ curl -X POST http://localhost:3000/projects/PROJECT_ID/link-repository \
 **Ou GitHub App (recommandé production) :**
 - Voir `GITHUB_APP_SETUP.md` (maintenant supprimé, infos ci-dessous)
 - Permissions : Contents (Read & Write), Pull Requests (Read & Write)
-
-### GitLab (✅ Production Ready)
-
-**Setup :**
-1. Générer un Personal Access Token : https://gitlab.com/-/profile/personal_access_tokens
-2. Scopes requis : `api`, `read_api`, `write_repository`
-3. Ajouter à `.env` : `GITLAB_TOKEN=glpat-xxx`
-
-**Support GitLab Self-Hosted :**
-```yaml
-vcs:
-  provider: gitlab
-  url: https://gitlab.company.com
-  token: ${GITLAB_TOKEN}
-```
 
 ### Anthropic Claude (✅ Production Ready)
 
@@ -551,9 +544,6 @@ pnpm test:coverage
 cd packages/sdk
 GITHUB_TOKEN="ghp_xxx" npx ts-node src/__manual_tests__/test-integration-e2e.ts facebook/react
 
-# Test providers GitLab
-GITLAB_TOKEN="glpat-xxx" npx ts-node src/__manual_tests__/test-gitlab.ts
-
 # Test OpenAI
 OPENAI_API_KEY="sk-proj-xxx" npx ts-node src/__manual_tests__/test-openai-simple.ts
 ```
@@ -564,10 +554,8 @@ OPENAI_API_KEY="sk-proj-xxx" npx ts-node src/__manual_tests__/test-openai-simple
 |--------|-------------|-------------------|
 | `test-integration-e2e.ts` | Test complet analyse codebase | GITHUB_TOKEN |
 | `test-codebase-modules.ts` | Test exports modules | Aucune |
-| `test-gitlab.ts` | Test GitLab VCS | GITLAB_TOKEN |
-| `test-gitlab-ci.ts` | Test GitLab CI | GITLAB_TOKEN |
 | `test-openai-simple.ts` | Test OpenAI | OPENAI_API_KEY |
-| `test-notion-warning.ts` | Test callout Notion | NOTION_API_KEY, NOTION_PAGE_ID |
+| `test-linear-*.ts` | Tests Linear SDK | LINEAR_API_KEY |
 
 ### Build Status
 
@@ -663,13 +651,13 @@ export GITHUB_TOKEN=ghp_your_token
 # ou ajouter au .env
 ```
 
-#### "Bad credentials" (GitHub/GitLab)
+#### "Bad credentials" (GitHub)
 
 **Cause :** Token invalide ou expiré
 
 **Solution :**
 1. Régénérer le token
-2. Vérifier les scopes (repo pour GitHub, api pour GitLab)
+2. Vérifier les scopes (repo pour GitHub)
 3. Mettre à jour .env
 
 #### "Repository not configured"
@@ -689,7 +677,6 @@ echo "DEFAULT_REPO_URL=https://github.com/your-username/your-repo" >> .env
 
 **Solution :**
 - GitHub : 5000/heure (authentifié)
-- GitLab : 600/minute
 - Attendre ou utiliser GitHub App
 
 #### "Database connection failed"
@@ -840,13 +827,6 @@ sla:
 - Pull requests: Read & Write
 - Metadata: Read-only (auto)
 
-### Permissions GitLab Token
-
-**Minimum requis :**
-- `api` - Accès API complet
-- `read_api` - Lecture données
-- `write_repository` - Écriture repo
-
 ---
 
 ## 💰 Coûts
@@ -905,32 +885,7 @@ docker-compose logs -f
 
 ## 🔄 Changelog
 
-### v1.12.0 (2025-11-01)
-
-**Ajouts majeurs :**
-- ✅ Support GitLab complet (VCS + CI)
-- ✅ Support OpenAI GPT-4
-- ✅ Analyse de codebase via API GitHub
-- ✅ 6 langages supportés pour dependencies
-- ✅ 15+ frameworks détectés
-- ✅ Notion warning callout
-- ✅ API endpoint link-repository
-
-**Bug fixes :**
-- ✅ Encodage URI GitLab
-- ✅ Types exports
-- ✅ Prisma dependencies
-
-**Performance :**
-- Simple generation : 2.4s
-- Spec generation : 13.2s
-- Code generation : 10.3s
-
-### Versions Précédentes
-
-- v1.11.0 : Initial release
-- v1.10.0 : GitHub provider
-- v1.9.0 : Anthropic provider
+Le changelog est désormais maintenu dans `CHANGELOG.md`.
 
 ---
 
@@ -938,7 +893,6 @@ docker-compose logs -f
 
 ### Q1 2025
 
-- [ ] Bitbucket provider (VCS + CI)
 - [ ] Cursor AI provider (si API dispo)
 - [ ] Azure DevOps support
 - [ ] Preview deployments (Vercel, Render, Fly.io)
@@ -964,11 +918,10 @@ docker-compose logs -f
 
 ### Limitations Connues
 
-1. **Bitbucket :** Non implémenté
-2. **Cursor AI :** Pas d'API publique
-3. **Callout Notion :** Ajouté en bas de page (pas en haut)
-4. **Duplicate warnings :** Pas de détection de duplicates
-5. **Cache :** Pas de cache des analyses codebase
+1. **Cursor AI :** Pas d'API publique
+2. **Linear Comments :** Commentaire warning ajouté après génération spec
+3. **Duplicate warnings :** Pas de détection de duplicates
+4. **Cache :** Pas de cache des analyses codebase
 
 ### Compatibilité
 
@@ -990,7 +943,6 @@ docker-compose logs -f
 - ✅ **12/12 tests** unitaires passent
 - ✅ **4/4 packages** buildent sans erreurs
 - ✅ **0 erreurs** TypeScript
-- ✅ **Bug critique** résolu (encodage GitLab)
 - ✅ **Integration GitHub** complète et testée
 - ✅ **MVP** Production Ready
 
@@ -1014,14 +966,13 @@ soma-squad-ai/
     │   └── src/
     │       ├── activities/
     │       │   ├── codebase.activities.ts  # Analyse repo
-    │       │   └── notion.activities.ts    # Warning callout
+    │       │   └── linear.activities.ts    # Linear integration
     │       └── workflows/
     │           └── soma-squad-ai.workflow.ts  # Workflow principal
     └── sdk/
         └── src/
             ├── vcs/
             │   ├── github.provider.ts    # GitHub
-            │   ├── gitlab.provider.ts    # GitLab
             │   └── repository-utils.ts   # Utils parsing
             ├── codebase/
             │   ├── structure-analyzer.ts
@@ -1035,9 +986,9 @@ soma-squad-ai/
 
 ---
 
-**Soma Squad AI v1.12.0** - De Notion à Production, Automatiquement. ✨
+**Soma Squad AI v1.12.1** - De Linear à Production, Automatiquement. ✨
 
-**Dernière mise à jour :** 16 novembre 2025  
+**Dernière mise à jour :** 6 décembre 2025  
 **Status :** ✅ Production Ready  
 **Prochaine version :** v1.13.0 (Q1 2025)
 

@@ -16,18 +16,15 @@ export class WebhooksService {
     return { received: true, event };
   }
 
-  async handleGitLab(event: string, payload: any) {
-    this.logger.info('GitLab webhook received', { event });
-    
-    // TODO: Handle different GitLab events
-    return { received: true, event };
-  }
+  async handleLinear(signature: string, payload: any) {
+    this.logger.info('Linear webhook received', { action: payload?.action, type: payload?.type });
 
-  async handleNotion(payload: any) {
-    this.logger.info('Notion webhook received');
-    
-    // TODO: Handle Notion database updates
-    return { received: true };
+    // TODO: Verify webhook signature
+    // TODO: Handle different Linear events (Issue created, updated, etc.)
+    // Possible actions: create, update, remove
+    // Possible types: Issue, Comment, Project, etc.
+
+    return { received: true, action: payload?.action, type: payload?.type };
   }
 }
 

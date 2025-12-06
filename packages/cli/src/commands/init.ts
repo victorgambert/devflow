@@ -123,7 +123,7 @@ export default class Init extends Command {
     this.log();
     this.log(chalk.cyan('Next steps:'));
     this.log(chalk.white('  1. Review and customize .soma-squad-ai.yml'));
-    this.log(chalk.white('  2. Run: soma-squad-ai connect notion'));
+    this.log(chalk.white('  2. Run: soma-squad-ai connect linear'));
     this.log(chalk.white('  3. Run: soma-squad-ai connect github'));
     this.log(chalk.white('  4. Run: soma-squad-ai doctor'));
     this.log();
@@ -286,9 +286,9 @@ export default class Init extends Command {
 # API
 DEVFLOW_API_URL=http://localhost:3000
 
-# Notion
-NOTION_API_KEY=
-NOTION_DATABASE_ID=
+# Linear
+LINEAR_API_KEY=
+LINEAR_WEBHOOK_SECRET=
 
 # GitHub
 GITHUB_TOKEN=

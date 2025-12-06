@@ -296,9 +296,9 @@ echo "🎉 Votre repository est correctement configuré!"
 echo ""
 echo "📋 Prochaines étapes:"
 echo "   1. Démarrer les services (Docker, Temporal, API, Worker)"
-echo "   2. Créer une tâche dans Notion"
-echo "   3. La déplacer en statut 'SPECIFICATION'"
-echo "   4. DevFlow générera automatiquement la spec avec le contexte de votre repo"
+echo "   2. Créer une tâche dans Linear"
+echo "   3. La déplacer en statut 'Specification'"
+echo "   4. Soma Squad AI générera automatiquement la spec avec le contexte de votre repo"
 echo ""
 
 # Cleanup

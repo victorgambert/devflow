@@ -107,10 +107,10 @@ api:
     - name: GITHUB_TOKEN
       secretName: soma-squad-ai-secrets
       secretKey: github-token
-    - name: NOTION_API_KEY
+    - name: LINEAR_API_KEY
       secretName: soma-squad-ai-secrets
-      secretKey: notion-api-key
-    
+      secretKey: linear-api-key
+
     # JWT Secret
     - name: JWT_SECRET
       secretName: soma-squad-ai-secrets
@@ -232,10 +232,10 @@ worker:
     - name: GITHUB_TOKEN
       secretName: soma-squad-ai-secrets
       secretKey: github-token
-    - name: NOTION_API_KEY
+    - name: LINEAR_API_KEY
       secretName: soma-squad-ai-secrets
-      secretKey: notion-api-key
-  
+      secretKey: linear-api-key
+
   # Health checks (metrics endpoint)
   livenessProbe:
     httpGet:

@@ -1,5 +1,5 @@
 /**
- * Webhooks Controller - Handle webhooks from VCS, CI, Notion
+ * Webhooks Controller - Handle webhooks from VCS, CI, Linear
  */
 
 import { Controller, Post, Body, Headers } from '@nestjs/common';
@@ -18,18 +18,14 @@ export class WebhooksController {
     return this.webhooksService.handleGitHub(event, payload);
   }
 
-  @Post('gitlab')
-  @ApiOperation({ summary: 'GitLab webhook endpoint' })
+  @Post('linear')
+  @ApiOperation({ summary: 'Linear webhook endpoint' })
   @ApiResponse({ status: 200, description: 'Webhook processed' })
-  async handleGitLab(@Headers('x-gitlab-event') event: string, @Body() payload: any) {
-    return this.webhooksService.handleGitLab(event, payload);
-  }
-
-  @Post('notion')
-  @ApiOperation({ summary: 'Notion webhook endpoint' })
-  @ApiResponse({ status: 200, description: 'Webhook processed' })
-  async handleNotion(@Body() payload: any) {
-    return this.webhooksService.handleNotion(payload);
+  async handleLinear(
+    @Headers('linear-signature') signature: string,
+    @Body() payload: any,
+  ) {
+    return this.webhooksService.handleLinear(signature, payload);
   }
 }
 

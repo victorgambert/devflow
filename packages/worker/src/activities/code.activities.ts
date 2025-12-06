@@ -47,8 +47,9 @@ export async function generateCode(input: GenerateCodeInput): Promise<GenerateCo
     });
 
     const agent = createCodeAgentDriver({
-      provider: 'anthropic',
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      provider: 'openrouter',
+      apiKey: process.env.OPENROUTER_API_KEY || '',
+      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
     });
 
     const code = await agent.generateCode({
@@ -91,8 +92,9 @@ export async function generateFix(input: GenerateFixInput): Promise<GenerateFixO
 
   try {
     const agent = createCodeAgentDriver({
-      provider: 'anthropic',
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      provider: 'openrouter',
+      apiKey: process.env.OPENROUTER_API_KEY || '',
+      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
     });
 
     const fix = await agent.generateFix({

@@ -5,7 +5,7 @@
 export interface ProjectConfig {
   version: string;
   project: ProjectMetadata;
-  notion?: NotionConfig;
+  linear?: LinearConfig;
   vcs: VCSConfig;
   commands: CommandsConfig;
   ci: CIConfig;
@@ -26,16 +26,20 @@ export interface ProjectMetadata {
   repo?: string; // Repository name (parsed from URL)
 }
 
-export interface NotionConfig {
+export interface LinearConfig {
   enabled: boolean;
-  database_id: string;
-  field_mapping: {
-    title: string;
-    status: string;
-    priority: string;
-    assignee: string;
-    epic?: string;
-    story_points?: string;
+  team_id?: string;
+  project_id?: string;
+  trigger_status?: string;  // Status that triggers workflow
+  next_status?: string;     // Status to set after workflow starts
+  status_mapping?: {
+    todo?: string;
+    specification?: string;
+    in_progress?: string;
+    in_review?: string;
+    testing?: string;
+    done?: string;
+    blocked?: string;
   };
 }
 

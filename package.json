@@ -2,7 +2,7 @@
   "name": "soma-squad-ai",
   "version": "1.0.0",
   "private": true,
-  "description": "Universal DevOps orchestrator - Notion to Production automation",
+  "description": "Universal DevOps orchestrator - Linear to Production automation",
   "keywords": ["devops", "automation", "orchestrator", "temporal", "nestjs", "ai"],
   "author": "Soma Squad AI Team",
   "license": "MIT",

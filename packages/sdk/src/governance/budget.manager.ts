@@ -13,7 +13,7 @@ const logger = createLogger('BudgetManager');
 // ============================================
 
 export interface LLMUsage {
-  provider: 'anthropic' | 'openai' | 'cursor';
+  provider: 'openrouter' | 'anthropic' | 'openai' | 'cursor';
   model: string;
   operation: string;
   inputTokens: number;
@@ -72,17 +72,32 @@ export interface CostBreakdown {
 
 // Pricing (USD per 1M tokens)
 const PRICING: Record<string, { input: number; output: number }> = {
-  // Anthropic Claude
+  // Anthropic Claude (direct)
   'claude-3-5-sonnet-20241022': { input: 3.0, output: 15.0 },
   'claude-3-opus-20240229': { input: 15.0, output: 75.0 },
   'claude-3-sonnet-20240229': { input: 3.0, output: 15.0 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
-  
-  // OpenAI
+
+  // OpenAI (direct)
   'gpt-4': { input: 30.0, output: 60.0 },
   'gpt-4-turbo': { input: 10.0, output: 30.0 },
   'gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-  
+
+  // OpenRouter - Anthropic models
+  'anthropic/claude-sonnet-4': { input: 3.0, output: 15.0 },
+  'anthropic/claude-3.5-sonnet': { input: 3.0, output: 15.0 },
+  'anthropic/claude-3-opus': { input: 15.0, output: 75.0 },
+  'anthropic/claude-3-haiku': { input: 0.25, output: 1.25 },
+
+  // OpenRouter - OpenAI models
+  'openai/gpt-4-turbo': { input: 10.0, output: 30.0 },
+  'openai/gpt-4o': { input: 5.0, output: 15.0 },
+  'openai/gpt-4o-mini': { input: 0.15, output: 0.6 },
+
+  // OpenRouter - Other models
+  'google/gemini-pro-1.5': { input: 2.5, output: 7.5 },
+  'meta-llama/llama-3.1-70b-instruct': { input: 0.9, output: 0.9 },
+
   // Default (if model unknown)
   'default': { input: 10.0, output: 30.0 },
 };

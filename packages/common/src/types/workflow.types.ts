@@ -3,7 +3,7 @@
  */
 
 export enum WorkflowStage {
-  NOTION_SYNC = 'notion_sync',
+  LINEAR_SYNC = 'linear_sync',
   SPEC_GENERATION = 'spec_generation',
   CODE_GENERATION = 'code_generation',
   PR_CREATION = 'pr_creation',

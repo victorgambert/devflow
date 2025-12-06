@@ -1,11 +1,11 @@
 /**
- * Tasks Service - Refactored with Prisma + Notion Integration
+ * Tasks Service - Refactored with Prisma + Linear Integration
  */
 
 import { Injectable, NotFoundException, forwardRef, Inject } from '@nestjs/common';
 import { createLogger } from '@soma-squad-ai/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotionClient } from '@soma-squad-ai/sdk';
+import { LinearClient } from '@soma-squad-ai/sdk';
 import { ConfigService } from '@nestjs/config';
 import { CreateTaskDto, UpdateTaskDto } from './dto';
 import { WorkflowsService } from '../workflows/workflows.service';
@@ -13,7 +13,7 @@ import { WorkflowsService } from '../workflows/workflows.service';
 @Injectable()
 export class TasksService {
   private logger = createLogger('TasksService');
-  private notionClient: NotionClient | null = null;
+  private linearClient: LinearClient | null = null;
 
   constructor(
     private prisma: PrismaService,
@@ -21,18 +21,16 @@ export class TasksService {
     @Inject(forwardRef(() => WorkflowsService))
     private workflowsService: WorkflowsService,
   ) {
-    // Initialize Notion client if configured
-    const notionApiKey = this.config.get('NOTION_API_KEY');
-    const notionDatabaseId = this.config.get('NOTION_DATABASE_ID');
+    // Initialize Linear client if configured
+    const linearApiKey = this.config.get('LINEAR_API_KEY');
 
-    if (notionApiKey && notionDatabaseId) {
-      this.notionClient = new NotionClient({
-        apiKey: notionApiKey,
-        databaseId: notionDatabaseId,
+    if (linearApiKey) {
+      this.linearClient = new LinearClient({
+        apiKey: linearApiKey,
       });
-      this.logger.info('Notion client initialized');
+      this.logger.info('Linear client initialized');
     } else {
-      this.logger.warn('Notion not configured - sync features will be disabled');
+      this.logger.warn('Linear not configured - sync features will be disabled');
     }
   }
 
@@ -76,11 +74,11 @@ export class TasksService {
 
   async create(dto: CreateTaskDto) {
     this.logger.info('Creating task', { title: dto.title });
-    
+
     return this.prisma.task.create({
       data: {
         projectId: dto.projectId,
-        notionId: dto.notionId,
+        linearId: dto.linearId,
         title: dto.title,
         description: dto.description,
         priority: dto.priority as any,
@@ -113,13 +111,13 @@ export class TasksService {
     if (movedToSpecification) {
       this.logger.info('Task moved to SPECIFICATION status, triggering spec generation', {
         taskId: id,
-        notionId: updated.notionId,
+        linearId: updated.linearId,
       });
 
       try {
         // Trigger spec generation workflow
         const workflowResult = await this.workflowsService.startSpecGeneration(
-          updated.notionId || id,
+          updated.linearId || id,
           updated.projectId,
           'system',
         );
@@ -134,13 +132,13 @@ export class TasksService {
       }
     }
 
-    // Sync back to Notion if task has notionId
-    if (this.notionClient && updated.notionId) {
+    // Sync back to Linear if task has linearId
+    if (this.linearClient && updated.linearId) {
       try {
-        await this.syncTaskToNotion(updated);
+        await this.syncTaskToLinear(updated);
       } catch (error) {
-        this.logger.error('Failed to sync task to Notion', error as Error, { id });
-        // Don't fail the update if Notion sync fails
+        this.logger.error('Failed to sync task to Linear', error as Error, { id });
+        // Don't fail the update if Linear sync fails
       }
     }
 
@@ -148,42 +146,41 @@ export class TasksService {
   }
 
   /**
-   * Sync tasks from Notion to local database
+   * Sync tasks from Linear to local database
    */
-  async syncFromNotion(projectId?: string) {
-    if (!this.notionClient) {
-      throw new Error('Notion not configured');
+  async syncFromLinear(projectId?: string, status?: string) {
+    if (!this.linearClient) {
+      throw new Error('Linear not configured');
     }
 
-    this.logger.info('Syncing tasks from Notion', { projectId });
+    this.logger.info('Syncing tasks from Linear', { projectId, status });
 
     try {
-      // Get recent tasks from Notion (last 24 hours)
-      const notionTasks = await this.notionClient.getRecentlyUpdatedTasks(24);
-      
-      this.logger.info('Retrieved tasks from Notion', { count: notionTasks.length });
+      // Get tasks from Linear (optionally filtered by status)
+      const linearTasks = status
+        ? await this.linearClient.queryIssuesByStatus(status)
+        : await this.linearClient.queryIssues({ first: 100 });
+
+      this.logger.info('Retrieved tasks from Linear', { count: linearTasks.length });
 
       let synced = 0;
       let created = 0;
       let updated = 0;
 
-      for (const notionTask of notionTasks) {
+      for (const linearTask of linearTasks) {
         try {
-          // Check if task exists by notionId
+          // Check if task exists by linearId
           const existing = await this.prisma.task.findUnique({
-            where: { notionId: notionTask.id },
+            where: { linearId: linearTask.linearId },
           });
 
           const taskData = {
-            title: notionTask.title,
-            description: notionTask.description || '',
-            status: this.mapNotionStatus(notionTask.status),
-            priority: this.mapNotionPriority(notionTask.priority),
-            assignee: notionTask.assignee,
-            epic: notionTask.epic,
-            storyPoints: notionTask.storyPoints,
-            labels: notionTask.labels || [],
-            metadata: notionTask.properties,
+            title: linearTask.title,
+            description: linearTask.description || '',
+            status: this.mapLinearStatus(linearTask.status),
+            priority: this.mapLinearPriority(linearTask.priority),
+            assignee: linearTask.assignee,
+            labels: linearTask.labels || [],
           };
 
           if (existing) {
@@ -202,12 +199,12 @@ export class TasksService {
             if (movedToSpecification) {
               this.logger.info('Task synced with SPECIFICATION status, triggering spec generation', {
                 taskId: existing.id,
-                notionId: notionTask.id,
+                linearId: linearTask.linearId,
               });
 
               try {
                 await this.workflowsService.startSpecGeneration(
-                  notionTask.id,
+                  linearTask.linearId,
                   projectId || existing.projectId,
                   'system',
                 );
@@ -221,7 +218,7 @@ export class TasksService {
               data: {
                 ...taskData,
                 projectId,
-                notionId: notionTask.id,
+                linearId: linearTask.linearId,
               },
             });
             created++;
@@ -230,7 +227,7 @@ export class TasksService {
           synced++;
         } catch (error) {
           this.logger.error('Failed to sync task', error as Error, {
-            notionId: notionTask.id,
+            linearId: linearTask.linearId,
           });
         }
       }
@@ -241,39 +238,25 @@ export class TasksService {
         synced,
         created,
         updated,
-        total: notionTasks.length,
+        total: linearTasks.length,
       };
     } catch (error) {
-      this.logger.error('Failed to sync from Notion', error as Error);
+      this.logger.error('Failed to sync from Linear', error as Error);
       throw error;
     }
   }
 
   /**
-   * Sync a task to Notion
+   * Sync a task to Linear
    */
-  private async syncTaskToNotion(task: any) {
-    if (!this.notionClient || !task.notionId) {
+  private async syncTaskToLinear(task: any) {
+    if (!this.linearClient || !task.linearId) {
       return;
     }
 
-    this.logger.info('Syncing task to Notion', { id: task.id, notionId: task.notionId });
+    this.logger.info('Syncing task to Linear', { id: task.id, linearId: task.linearId });
 
-    await this.notionClient.updateTask(task.notionId, {
-      id: task.notionId,
-      title: task.title,
-      description: task.description,
-      status: this.mapStatusToNotion(task.status),
-      priority: this.mapPriorityToNotion(task.priority),
-      assignee: task.assignee,
-      epic: task.epic,
-      storyPoints: task.storyPoints,
-      labels: task.labels,
-      url: '',
-      createdTime: '',
-      lastEditedTime: '',
-      properties: {},
-    });
+    await this.linearClient.updateStatus(task.linearId, this.mapStatusToLinear(task.status));
   }
 
   /**
@@ -341,49 +324,61 @@ export class TasksService {
   }
 
   // Status mapping helpers
-  private mapNotionStatus(notionStatus: string): any {
-    const statusMap: Record<string, string> = {
-      'To Do': 'TODO',
-      'Specification': 'SPECIFICATION',
-      'In Progress': 'IN_PROGRESS',
-      'In Review': 'IN_REVIEW',
-      'Testing': 'TESTING',
-      'Done': 'DONE',
-      'Blocked': 'BLOCKED',
-    };
-    return statusMap[notionStatus] || 'TODO';
+  private mapLinearStatus(linearStatus: string): any {
+    const normalizedStatus = linearStatus.toLowerCase();
+
+    if (normalizedStatus.includes('backlog') || normalizedStatus.includes('triage') || normalizedStatus.includes('todo')) {
+      return 'TODO';
+    }
+    if (normalizedStatus.includes('spec')) {
+      return 'SPECIFICATION';
+    }
+    if (normalizedStatus.includes('progress') || normalizedStatus.includes('doing')) {
+      return 'IN_PROGRESS';
+    }
+    if (normalizedStatus.includes('review')) {
+      return 'IN_REVIEW';
+    }
+    if (normalizedStatus.includes('test') || normalizedStatus.includes('qa')) {
+      return 'TESTING';
+    }
+    if (normalizedStatus.includes('done') || normalizedStatus.includes('complete') || normalizedStatus.includes('closed')) {
+      return 'DONE';
+    }
+    if (normalizedStatus.includes('block') || normalizedStatus.includes('cancel')) {
+      return 'BLOCKED';
+    }
+    return 'TODO';
   }
 
-  private mapStatusToNotion(status: string): string {
+  private mapStatusToLinear(status: string): string {
     const statusMap: Record<string, string> = {
-      TODO: 'To Do',
-      SPECIFICATION: 'Specification',
+      TODO: 'Todo',
+      SPECIFICATION: 'Spec Ready',
       IN_PROGRESS: 'In Progress',
       IN_REVIEW: 'In Review',
       TESTING: 'Testing',
       DONE: 'Done',
       BLOCKED: 'Blocked',
     };
-    return statusMap[status] || 'To Do';
+    return statusMap[status] || 'Todo';
   }
 
-  private mapNotionPriority(notionPriority: string): any {
-    const priorityMap: Record<string, string> = {
-      Low: 'LOW',
-      Medium: 'MEDIUM',
-      High: 'HIGH',
-      Critical: 'CRITICAL',
-    };
-    return priorityMap[notionPriority] || 'MEDIUM';
-  }
+  private mapLinearPriority(linearPriority: string): any {
+    const normalizedPriority = linearPriority.toLowerCase();
 
-  private mapPriorityToNotion(priority: string): string {
-    const priorityMap: Record<string, string> = {
-      LOW: 'Low',
-      MEDIUM: 'Medium',
-      HIGH: 'High',
-      CRITICAL: 'Critical',
-    };
-    return priorityMap[priority] || 'Medium';
+    if (normalizedPriority.includes('urgent') || normalizedPriority.includes('critical')) {
+      return 'CRITICAL';
+    }
+    if (normalizedPriority.includes('high')) {
+      return 'HIGH';
+    }
+    if (normalizedPriority.includes('medium') || normalizedPriority.includes('normal')) {
+      return 'MEDIUM';
+    }
+    if (normalizedPriority.includes('low')) {
+      return 'LOW';
+    }
+    return 'MEDIUM';
   }
 }

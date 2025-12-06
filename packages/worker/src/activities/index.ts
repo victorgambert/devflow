@@ -2,8 +2,8 @@
  * Temporal Activities - All exports
  */
 
-// Notion activities
-export * from './notion.activities';
+// Linear activities
+export * from './linear.activities';
 
 // VCS activities
 export * from './vcs.activities';

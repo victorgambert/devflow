@@ -62,11 +62,15 @@ export class TasksController {
     return this.tasksService.update(id, updateTaskDto);
   }
 
-  @Post('sync/notion')
-  @ApiOperation({ summary: 'Sync tasks from Notion' })
+  @Post('sync/linear')
+  @ApiOperation({ summary: 'Sync tasks from Linear' })
   @ApiResponse({ status: 200, description: 'Tasks synced' })
   @ApiQuery({ name: 'projectId', required: false })
-  async syncFromNotion(@Query('projectId') projectId?: string) {
-    return this.tasksService.syncFromNotion(projectId);
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by Linear status' })
+  async syncFromLinear(
+    @Query('projectId') projectId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.tasksService.syncFromLinear(projectId, status);
   }
 }

@@ -3,7 +3,7 @@
  */
 
 export interface VCSProvider {
-  name: 'github' | 'gitlab' | 'bitbucket';
+  name: 'github';
 }
 
 export interface Repository {

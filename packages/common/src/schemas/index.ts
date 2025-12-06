@@ -13,22 +13,26 @@ export const ProjectConfigSchema = z.object({
     language: z.string(),
     framework: z.string().optional(),
   }),
-  notion: z
+  linear: z
     .object({
       enabled: z.boolean(),
-      database_id: z.string(),
-      field_mapping: z.object({
-        title: z.string(),
-        status: z.string(),
-        priority: z.string(),
-        assignee: z.string(),
-        epic: z.string().optional(),
-        story_points: z.string().optional(),
-      }),
+      team_id: z.string().optional(),
+      project_id: z.string().optional(),
+      trigger_status: z.string().optional(),
+      next_status: z.string().optional(),
+      status_mapping: z.object({
+        todo: z.string().optional(),
+        specification: z.string().optional(),
+        in_progress: z.string().optional(),
+        in_review: z.string().optional(),
+        testing: z.string().optional(),
+        done: z.string().optional(),
+        blocked: z.string().optional(),
+      }).optional(),
     })
     .optional(),
   vcs: z.object({
-    provider: z.enum(['github', 'gitlab', 'bitbucket']),
+    provider: z.enum(['github']),
     base_branch: z.string(),
     branch_pattern: z.string(),
     pr_template: z.string().optional(),
@@ -44,7 +48,7 @@ export const ProjectConfigSchema = z.object({
     custom: z.record(z.string()).optional(),
   }),
   ci: z.object({
-    provider: z.enum(['github-actions', 'gitlab-ci', 'bitbucket-pipelines', 'jenkins', 'circleci']),
+    provider: z.enum(['github-actions', 'jenkins', 'circleci']),
     config_path: z.string(),
     artifacts: z
       .object({

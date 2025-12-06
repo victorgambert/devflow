@@ -46,11 +46,11 @@ export async function generateSpecification(
       conventions: specContext.conventions.length,
     });
 
-    // Create AI agent
+    // Create AI agent via OpenRouter
     const agent = createCodeAgentDriver({
-      provider: 'anthropic',
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-      model: 'claude-sonnet-4-0',
+      provider: 'openrouter',
+      apiKey: process.env.OPENROUTER_API_KEY || '',
+      model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
     });
 
     // Generate spec with real codebase context

@@ -10,10 +10,10 @@ import type * as activities from '../activities';
 
 // Configure activity proxies
 const {
-  syncNotionTask,
-  updateNotionTask,
-  appendSpecToNotionPage,
-  appendWarningToNotionPage,
+  syncLinearTask,
+  updateLinearTask,
+  appendSpecToLinearIssue,
+  appendWarningToLinearIssue,
   generateSpecification,
   sendNotification,
 } = proxyActivities<typeof activities>({
@@ -31,14 +31,14 @@ const {
  * Spec generation workflow - only generates specification
  */
 export async function specGenerationWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
-  let currentStage: WorkflowStage = 'notion_sync' as WorkflowStage;
+  let currentStage: WorkflowStage = 'linear_sync' as WorkflowStage;
 
   try {
     // ============================================
-    // Stage 1: Sync task from Notion
+    // Stage 1: Sync task from Linear
     // ============================================
-    currentStage = 'notion_sync' as WorkflowStage;
-    const task = await syncNotionTask({ taskId: input.taskId, projectId: input.projectId });
+    currentStage = 'linear_sync' as WorkflowStage;
+    const task = await syncLinearTask({ taskId: input.taskId, projectId: input.projectId });
 
     await sendNotification({
       projectId: input.projectId,
@@ -52,23 +52,23 @@ export async function specGenerationWorkflow(input: WorkflowInput): Promise<Work
     currentStage = 'spec_generation' as WorkflowStage;
     const spec = await generateSpecification({ task, projectId: input.projectId });
 
-    // Update Notion status to stay in Specification
-    await updateNotionTask({
-      notionId: task.id,
+    // Update Linear status to stay in Specification
+    await updateLinearTask({
+      linearId: task.linearId,
       updates: {
         status: 'Specification',
       },
     });
 
-    // Append spec to Notion page body as markdown
-    await appendSpecToNotionPage({
-      notionId: task.id,
+    // Append spec to Linear issue description as markdown
+    await appendSpecToLinearIssue({
+      linearId: task.linearId,
       spec: spec,
     });
 
     // Append warning message about auto-generated specs
-    await appendWarningToNotionPage({
-      notionId: task.id,
+    await appendWarningToLinearIssue({
+      linearId: task.linearId,
     });
 
     await sendNotification({
@@ -124,15 +124,15 @@ export async function specGenerationWorkflow(input: WorkflowInput): Promise<Work
       },
     });
 
-    // Update Notion to "Blocked"
+    // Update Linear to "Blocked"
     if (input.taskId) {
       try {
-        await updateNotionTask({
-          notionId: input.taskId,
+        await updateLinearTask({
+          linearId: input.taskId,
           updates: { status: 'Blocked' },
         });
       } catch {
-        // Ignore errors updating Notion on failure
+        // Ignore errors updating Linear on failure
       }
     }
 

@@ -5,7 +5,7 @@
 export interface SomaSquadAIProfile {
   version: string;
   project: ProjectMetadata;
-  notion?: NotionConfig;
+  linear?: LinearConfig;
   vcs: VCSConfig;
   commands: CommandsConfig;
   ci: CIConfig;
@@ -31,22 +31,25 @@ export interface ProjectMetadata {
   framework?: string;
 }
 
-export interface NotionConfig {
+export interface LinearConfig {
   enabled: boolean;
-  database_id: string;
-  field_mapping: {
-    title: string;
-    status: string;
-    priority: string;
-    assignee: string;
-    epic?: string;
-    story_points?: string;
-    acceptance_criteria?: string;  // Phase 3
+  team_id?: string;
+  project_id?: string;
+  trigger_status?: string;  // Status that triggers workflow (e.g., "Specification")
+  next_status?: string;     // Status to set after workflow starts (e.g., "In Progress")
+  status_mapping?: {
+    todo?: string;
+    specification?: string;
+    in_progress?: string;
+    in_review?: string;
+    testing?: string;
+    done?: string;
+    blocked?: string;
   };
 }
 
 export interface VCSConfig {
-  provider: 'github' | 'gitlab' | 'bitbucket';
+  provider: 'github';
   base_branch: string;
   branch_pattern: string;
   pr_template?: string;
@@ -69,7 +72,7 @@ export interface CommandsConfig {
 }
 
 export interface CIConfig {
-  provider: 'github-actions' | 'gitlab-ci' | 'bitbucket-pipelines' | 'jenkins' | 'circleci';
+  provider: 'github-actions' | 'jenkins' | 'circleci';
   config_path: string;
   artifacts?: {
     coverage?: string;

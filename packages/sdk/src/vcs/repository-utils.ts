@@ -5,7 +5,7 @@
 export interface RepositoryInfo {
   owner: string;
   repo: string;
-  provider: 'github' | 'gitlab' | 'bitbucket';
+  provider: 'github';
   url: string;
 }
 
@@ -45,68 +45,13 @@ export function parseGitHubUrl(url: string): { owner: string; repo: string } {
 }
 
 /**
- * Parse a GitLab repository URL
- *
- * Supports formats:
- * - https://gitlab.com/owner/repo
- * - https://gitlab.com/group/subgroup/repo
- */
-export function parseGitLabUrl(url: string): { owner: string; repo: string } {
-  const cleanUrl = url.trim().replace(/\/+$/, '');
-
-  const match = cleanUrl.match(/(?:https?:\/\/)?(?:www\.)?gitlab\.com\/(.+?)\/([^\/\.]+)(?:\.git)?$/);
-
-  if (!match) {
-    throw new Error(`Invalid GitLab URL format: ${url}`);
-  }
-
-  const [, owner, repo] = match;
-
-  return {
-    owner: owner.trim(),
-    repo: repo.trim().replace(/\.git$/, ''), // Only remove .git at the end
-  };
-}
-
-/**
- * Parse a Bitbucket repository URL
- *
- * Supports formats:
- * - https://bitbucket.org/owner/repo
- */
-export function parseBitbucketUrl(url: string): { owner: string; repo: string } {
-  const cleanUrl = url.trim().replace(/\/+$/, '');
-
-  const match = cleanUrl.match(/(?:https?:\/\/)?(?:www\.)?bitbucket\.org\/([^\/]+)\/([^\/\.]+)(?:\.git)?/);
-
-  if (!match) {
-    throw new Error(`Invalid Bitbucket URL format: ${url}`);
-  }
-
-  const [, owner, repo] = match;
-
-  return {
-    owner: owner.trim(),
-    repo: repo.trim().replace(/\.git$/, ''), // Only remove .git at the end
-  };
-}
-
-/**
  * Detect repository provider from URL
  */
-export function detectProvider(url: string): 'github' | 'gitlab' | 'bitbucket' {
+export function detectProvider(url: string): 'github' {
   const cleanUrl = url.toLowerCase();
 
   if (cleanUrl.includes('github.com')) {
     return 'github';
-  }
-
-  if (cleanUrl.includes('gitlab.com')) {
-    return 'gitlab';
-  }
-
-  if (cleanUrl.includes('bitbucket.org')) {
-    return 'bitbucket';
   }
 
   throw new Error(`Unknown repository provider in URL: ${url}`);
@@ -124,12 +69,6 @@ export function parseRepositoryUrl(url: string): RepositoryInfo {
   switch (provider) {
     case 'github':
       ({ owner, repo } = parseGitHubUrl(url));
-      break;
-    case 'gitlab':
-      ({ owner, repo } = parseGitLabUrl(url));
-      break;
-    case 'bitbucket':
-      ({ owner, repo } = parseBitbucketUrl(url));
       break;
     default:
       throw new Error(`Unsupported provider: ${provider}`);
@@ -153,10 +92,6 @@ export function normalizeRepositoryUrl(url: string): string {
   switch (provider) {
     case 'github':
       return `https://github.com/${owner}/${repo}`;
-    case 'gitlab':
-      return `https://gitlab.com/${owner}/${repo}`;
-    case 'bitbucket':
-      return `https://bitbucket.org/${owner}/${repo}`;
     default:
       return url;
   }

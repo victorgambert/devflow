@@ -370,15 +370,10 @@ export class ProjectAdapter {
   }
 
   /**
-   * Get acceptance criteria from task (if configured in Notion)
+   * Get acceptance criteria from task
    */
   getAcceptanceCriteria(task: any): string[] {
-    if (!this.profile?.notion?.field_mapping.acceptance_criteria) {
-      return [];
-    }
-
-    const acField = this.profile.notion.field_mapping.acceptance_criteria;
-    const criteria = task.metadata?.[acField] || task.acceptanceCriteria || [];
+    const criteria = task.acceptanceCriteria || task.metadata?.acceptanceCriteria || [];
 
     if (typeof criteria === 'string') {
       return criteria.split('\n').filter((line: string) => line.trim());

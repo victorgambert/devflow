@@ -1,5 +1,5 @@
 /**
- * Task Types from Notion and Internal Tracking
+ * Task Types from Linear and Internal Tracking
  */
 
 export enum TaskStatus {
@@ -22,7 +22,7 @@ export enum TaskPriority {
 export interface Task {
   id: string;
   projectId: string;
-  notionId?: string;
+  linearId?: string;
   title: string;
   description: string;
   status: TaskStatus;

@@ -10,10 +10,11 @@ import type * as activities from '../activities';
 
 // Configure activity proxies with advanced retry policies
 const {
-  syncNotionTask,
-  updateNotionTask,
-  appendSpecToNotionPage,
-  appendWarningToNotionPage,
+  // Linear activities
+  syncLinearTask,
+  updateLinearTask,
+  appendSpecToLinearIssue,
+  appendWarningToLinearIssue,
   generateSpecification,
   generateCode,
   createBranch,
@@ -42,7 +43,7 @@ const {
  * Main DevFlow workflow with full Testing ↔ Fix loop (Phase 3)
  */
 export async function somaSquadAIWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
-  let currentStage: WorkflowStage = 'notion_sync' as WorkflowStage;
+  let currentStage: WorkflowStage = 'linear_sync' as WorkflowStage;
   let prNumber: number | undefined;
   let branchName: string | undefined;
   const maxFixAttempts = 3;
@@ -51,20 +52,20 @@ export async function somaSquadAIWorkflow(input: WorkflowInput): Promise<Workflo
 
   try {
     // ============================================
-    // Stage 1: Sync task from Notion
+    // Stage 1: Sync task from Linear
     // ============================================
-    currentStage = 'notion_sync' as WorkflowStage;
-    const task = await syncNotionTask({ taskId: input.taskId, projectId: input.projectId });
-    
+    currentStage = 'linear_sync' as WorkflowStage;
+    const task = await syncLinearTask({ taskId: input.taskId, projectId: input.projectId });
+
     await sendNotification({
       projectId: input.projectId,
       event: 'workflow_started',
       data: { taskId: task.id, title: task.title },
     });
 
-    // Update Notion status to "Specification"
-    await updateNotionTask({
-      notionId: task.id,
+    // Update Linear status to "Specification"
+    await updateLinearTask({
+      linearId: task.linearId,
       updates: { status: 'Specification' },
     });
 
@@ -74,23 +75,23 @@ export async function somaSquadAIWorkflow(input: WorkflowInput): Promise<Workflo
     currentStage = 'spec_generation' as WorkflowStage;
     const spec = await generateSpecification({ task, projectId: input.projectId });
 
-    // Update Notion status to "In Progress"
-    await updateNotionTask({
-      notionId: task.id,
+    // Update Linear status to "In Progress"
+    await updateLinearTask({
+      linearId: task.linearId,
       updates: {
         status: 'In Progress',
       },
     });
 
-    // Append spec to Notion page body as markdown
-    await appendSpecToNotionPage({
-      notionId: task.id,
+    // Append spec to Linear issue description as markdown
+    await appendSpecToLinearIssue({
+      linearId: task.linearId,
       spec: spec,
     });
 
-    // Append warning message about auto-generated specs
-    await appendWarningToNotionPage({
-      notionId: task.id,
+    // Append warning comment about auto-generated specs
+    await appendWarningToLinearIssue({
+      linearId: task.linearId,
     });
 
     await sendNotification({
@@ -162,9 +163,9 @@ export async function somaSquadAIWorkflow(input: WorkflowInput): Promise<Workflo
       data: { taskId: task.id, prUrl: pr.url, prNumber: pr.number },
     });
 
-    // Update Notion with PR link
-    await updateNotionTask({
-      notionId: task.id,
+    // Update Linear with PR link
+    await updateLinearTask({
+      linearId: task.linearId,
       updates: { status: 'In Review' },
     });
 
@@ -297,9 +298,9 @@ export async function somaSquadAIWorkflow(input: WorkflowInput): Promise<Workflo
     currentStage = 'merge' as WorkflowStage;
     await mergePullRequest({ projectId: input.projectId, prNumber });
 
-    // Update Notion to "Done"
-    await updateNotionTask({
-      notionId: task.id,
+    // Update Linear to "Done"
+    await updateLinearTask({
+      linearId: task.linearId,
       updates: { status: 'Done' },
     });
 
@@ -377,15 +378,15 @@ export async function somaSquadAIWorkflow(input: WorkflowInput): Promise<Workflo
       },
     });
 
-    // Update Notion to "Blocked"
+    // Update Linear to "Blocked"
     if (input.taskId) {
       try {
-        await updateNotionTask({
-          notionId: input.taskId,
+        await updateLinearTask({
+          linearId: input.taskId,
           updates: { status: 'Blocked' },
         });
       } catch {
-        // Ignore errors updating Notion on failure
+        // Ignore errors updating Linear on failure
       }
     }
 

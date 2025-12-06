@@ -1,5 +1,5 @@
 /**
- * DevFlow SDK - Main exports
+ * Soma Squad AI SDK - Main exports
  */
 
 // VCS Drivers
@@ -8,16 +8,24 @@ export * from './vcs';
 // CI Drivers
 export * from './ci';
 
-// Notion Client - export everything except NotionConfig (handled below)
-export { NotionClient } from './notion/notion.client';
-export { NotionMapper } from './notion/notion.mapper';
-export { formatSpecAsMarkdown } from './notion/spec-formatter';
+// Linear Client
+export { LinearClient, createLinearClient } from './linear/linear.client';
+export { LinearMapper } from './linear/linear.mapper';
+export {
+  formatSpecAsMarkdown,
+  formatWarningMessage,
+  formatSpecWithWarning,
+} from './linear/spec-formatter';
 export type {
-  NotionFieldMapping,
-  NotionTask,
-  NotionPage,
-  NotionDatabaseQuery,
-} from './notion/notion.types';
+  LinearConfig,
+  LinearIssue,
+  LinearTask,
+  LinearState,
+  LinearTeam,
+  LinearUser,
+  LinearWebhookPayload,
+  LinearQueryOptions,
+} from './linear/linear.types';
 
 // Phase 3: Project Adapter & Agents
 export * from './project-adapter';
@@ -31,7 +39,3 @@ export * from './codebase';
 
 // Factory functions
 export * from './factories';
-
-// Re-export NotionConfig types explicitly with aliases to avoid ambiguity
-export type { NotionConfig as NotionClientConfig } from './notion/notion.types';
-export type { NotionConfig as NotionProfileConfig } from './project-adapter/soma-squad-ai-profile.types';

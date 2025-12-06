@@ -28,9 +28,9 @@ const REDACTION_PATHS = [
   'authorization',
   'Authorization',
   
-  // Notion
-  'notion.apiKey',
-  'notion.*.apiKey',
+  // Linear
+  'linear.apiKey',
+  'linear.*.apiKey',
   
   // GitHub
   'github.token',

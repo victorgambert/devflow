@@ -21,9 +21,9 @@ export class CreateTaskDto {
   @IsEnum(['low', 'medium', 'high', 'critical'])
   priority: string;
 
-  @ApiProperty({ example: 'notion-id-123', required: false })
+  @ApiProperty({ example: 'ABC-123', required: false, description: 'Linear issue ID' })
   @IsString()
   @IsOptional()
-  notionId?: string;
+  linearId?: string;
 }
 

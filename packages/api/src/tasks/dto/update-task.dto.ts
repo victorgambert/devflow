@@ -26,8 +26,8 @@ export class UpdateTaskDto {
   @IsOptional()
   status?: string;
 
-  @ApiProperty({ example: 'notion-id-123', required: false })
+  @ApiProperty({ example: 'ABC-123', required: false, description: 'Linear issue ID' })
   @IsString()
   @IsOptional()
-  notionId?: string;
+  linearId?: string;
 }

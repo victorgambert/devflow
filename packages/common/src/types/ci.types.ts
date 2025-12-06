@@ -3,7 +3,7 @@
  */
 
 export interface CIProvider {
-  name: 'github-actions' | 'gitlab-ci' | 'bitbucket-pipelines' | 'jenkins' | 'circleci';
+  name: 'github-actions' | 'jenkins' | 'circleci';
 }
 
 export enum CIStatus {

@@ -71,7 +71,7 @@
     "topicSeparator": " ",
     "topics": {
       "connect": {
-        "description": "Connect Soma Squad AI to external services (Notion, GitHub)"
+        "description": "Connect Soma Squad AI to external services (Linear, GitHub)"
       },
       "api-keys": {
         "description": "Manage API keys for Soma Squad AI"

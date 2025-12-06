@@ -221,7 +221,7 @@ async function main() {
     console.log('\nNext steps:');
     console.log('   1. Test with your own repositories');
     console.log('   2. Integrate with Temporal workflows');
-    console.log('   3. Connect to Notion for task management');
+    console.log('   3. Connect to Linear for task management');
     console.log('   4. Deploy to production\n');
 
   } catch (error) {

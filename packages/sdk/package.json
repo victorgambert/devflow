@@ -27,7 +27,7 @@
   "license": "MIT",
   "dependencies": {
     "@soma-squad-ai/common": "workspace:*",
-    "@notionhq/client": "^2.2.14",
+    "@linear/sdk": "^29.0.0",
     "@octokit/rest": "^20.0.2",
     "@prisma/client": "^5.8.1",
     "axios": "^1.6.5",

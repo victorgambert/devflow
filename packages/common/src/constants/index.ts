@@ -15,12 +15,10 @@ export const DEFAULT_RETRY_CONFIG = {
   maxInterval: 30000,
 };
 
-export const SUPPORTED_VCS_PROVIDERS = ['github', 'gitlab', 'bitbucket'] as const;
+export const SUPPORTED_VCS_PROVIDERS = ['github'] as const;
 
 export const SUPPORTED_CI_PROVIDERS = [
   'github-actions',
-  'gitlab-ci',
-  'bitbucket-pipelines',
   'jenkins',
   'circleci',
 ] as const;
@@ -43,7 +41,7 @@ export const LOG_CONTEXT = {
   VCS: 'vcs',
   CI: 'ci',
   AGENT: 'agent',
-  NOTION: 'notion',
+  LINEAR: 'linear',
   NOTIFICATION: 'notification',
 } as const;
 
