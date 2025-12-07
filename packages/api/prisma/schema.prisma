@@ -30,10 +30,12 @@ model Project {
   updatedAt     DateTime @updatedAt @map("updated_at")
   
   // Relations
-  tasks         Task[]
-  workflows     Workflow[]
-  organizations OrganizationProject[]
-  
+  tasks            Task[]
+  workflows        Workflow[]
+  organizations    OrganizationProject[]
+  codebaseIndices  CodebaseIndex[]
+  ragRetrievals    RagRetrieval[]
+
   @@map("projects")
   @@index([name])
   @@index([isActive])
@@ -851,6 +853,117 @@ model AnonymizationLog {
   
   @@map("anonymization_logs")
   @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ============================================
+// RAG (Retrieval-Augmented Generation)
+// ============================================
+
+model CodebaseIndex {
+  id               String    @id @default(uuid())
+  projectId        String    @map("project_id")
+
+  // Indexing metadata
+  status           String    // PENDING, INDEXING, COMPLETED, FAILED, STALE, UPDATING
+  totalChunks      Int       @default(0) @map("total_chunks")
+  totalFiles       Int       @default(0) @map("total_files")
+  indexedFiles     String[]  @map("indexed_files")
+
+  // Vector store metadata
+  qdrantCollectionId String?   @map("qdrant_collection_id")
+  embeddingModel     String    @map("embedding_model")
+  embeddingDimensions Int      @map("embedding_dimensions")
+
+  // Repository snapshot
+  commitSha        String    @map("commit_sha")
+  branch           String    @default("main")
+
+  // Performance metrics
+  indexingDuration Int?      @map("indexing_duration") // milliseconds
+  totalTokens      Int       @default(0) @map("total_tokens")
+  cost             Float     @default(0)
+
+  // Timestamps
+  startedAt        DateTime  @default(now()) @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+
+  // Relations
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  chunks           DocumentChunk[]
+
+  @@map("codebase_indices")
+  @@index([projectId])
+  @@index([status])
+  @@index([commitSha])
+}
+
+model DocumentChunk {
+  id               String    @id @default(uuid())
+  codebaseIndexId  String    @map("codebase_index_id")
+
+  // Document metadata
+  filePath         String    @map("file_path")
+  startLine        Int?      @map("start_line")
+  endLine          Int?      @map("end_line")
+  chunkIndex       Int       @map("chunk_index")
+
+  // Content
+  content          String    @db.Text
+  language         String
+  chunkType        String    @map("chunk_type") // function, class, module, comment, import
+
+  // Embedding metadata
+  qdrantPointId    String?   @map("qdrant_point_id")
+  embeddingHash    String?   @map("embedding_hash")
+
+  // Context metadata (JSON)
+  metadata         Json?
+
+  // Timestamps
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  codebaseIndex    CodebaseIndex @relation(fields: [codebaseIndexId], references: [id], onDelete: Cascade)
+
+  @@map("document_chunks")
+  @@index([codebaseIndexId])
+  @@index([filePath])
+  @@index([embeddingHash])
+}
+
+model RagRetrieval {
+  id               String    @id @default(uuid())
+  taskId           String?   @map("task_id")
+  projectId        String    @map("project_id")
+
+  // Query metadata
+  query            String    @db.Text
+  retrievalMethod  String    @map("retrieval_method") // semantic, hybrid, graph
+
+  // Results
+  retrievedChunkIds String[] @map("retrieved_chunk_ids")
+  scores           Float[]
+  rerankScores     Float[]   @default([]) @map("rerank_scores")
+
+  // Performance
+  retrievalTimeMs  Int       @map("retrieval_time_ms")
+  rerankTimeMs     Int?      @map("rerank_time_ms")
+  totalChunksScanned Int     @map("total_chunks_scanned")
+
+  // Cost tracking
+  tokensUsed       Int       @default(0) @map("tokens_used")
+  cost             Float     @default(0)
+
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("rag_retrievals")
+  @@index([taskId])
+  @@index([projectId])
   @@index([createdAt])
 }
 

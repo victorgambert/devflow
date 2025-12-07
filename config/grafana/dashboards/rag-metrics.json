@@ -1,0 +1,407 @@
+{
+  "dashboard": {
+    "title": "DevFlow RAG Metrics",
+    "tags": ["devflow", "rag", "embeddings", "vector-search"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "schemaVersion": 38,
+    "panels": [
+      {
+        "id": 1,
+        "title": "Retrieval Performance",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rag_retrieval_duration_p50_ms",
+            "legendFormat": "P50",
+            "refId": "A"
+          },
+          {
+            "expr": "rag_retrieval_duration_p95_ms",
+            "legendFormat": "P95",
+            "refId": "B"
+          },
+          {
+            "expr": "rag_retrieval_duration_p99_ms",
+            "legendFormat": "P99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Latency (ms)",
+            "format": "ms"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Cache Hit Rate",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_cache_hit_rate * 100",
+            "legendFormat": "Hit Rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 50, "color": "yellow" },
+                { "value": 70, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Average Relevance Score",
+        "type": "stat",
+        "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_retrieval_relevance_score * 100",
+            "legendFormat": "Relevance",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 60, "color": "yellow" },
+                { "value": 75, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Total Retrievals",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rate(rag_retrievals_total[5m])",
+            "legendFormat": "Retrievals/sec",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Indexing Success Rate",
+        "type": "stat",
+        "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_indexing_success_rate * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 80, "color": "yellow" },
+                { "value": 95, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Indexing Duration",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rag_indexing_duration_p50_ms / 1000",
+            "legendFormat": "P50",
+            "refId": "A"
+          },
+          {
+            "expr": "rag_indexing_duration_p95_ms / 1000",
+            "legendFormat": "P95",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Duration (seconds)",
+            "format": "s"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Cache Performance",
+        "type": "graph",
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rag_cache_hit_latency_ms",
+            "legendFormat": "Hit Latency",
+            "refId": "A"
+          },
+          {
+            "expr": "rag_cache_miss_latency_ms",
+            "legendFormat": "Miss Latency",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Latency (ms)",
+            "format": "ms"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Cost Metrics",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rag_embedding_cost_usd[1h])",
+            "legendFormat": "Embedding Cost/h",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(rag_reranking_cost_usd[1h])",
+            "legendFormat": "Reranking Cost/h",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(rag_indexing_cost_usd[1h])",
+            "legendFormat": "Indexing Cost/h",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Cost (USD/hour)",
+            "format": "currencyUSD"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Monthly Cost Estimate",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 16, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_monthly_cost_usd",
+            "legendFormat": "Monthly Cost",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 100, "color": "yellow" },
+                { "value": 500, "color": "red" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Cost per Retrieval",
+        "type": "stat",
+        "gridPos": { "x": 18, "y": 16, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_cost_per_retrieval_usd * 1000000",
+            "legendFormat": "Cost per 1M",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Vector Store Vectors",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 20, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_vectorstore_vectors_total",
+            "legendFormat": "Total Vectors",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Vector Store Query Latency",
+        "type": "stat",
+        "gridPos": { "x": 18, "y": 20, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_vectorstore_query_latency_ms",
+            "legendFormat": "Query Latency",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "System Health",
+        "type": "stat",
+        "gridPos": { "x": 0, "y": 24, "w": 8, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_qdrant_status",
+            "legendFormat": "Qdrant",
+            "refId": "A"
+          },
+          {
+            "expr": "rag_redis_status",
+            "legendFormat": "Redis",
+            "refId": "B"
+          },
+          {
+            "expr": "rag_database_status",
+            "legendFormat": "Database",
+            "refId": "C"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "textMode": "name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 0.5, "color": "yellow" },
+                { "value": 1, "color": "green" }
+              ]
+            },
+            "mappings": [
+              { "type": "value", "value": 0, "text": "Down" },
+              { "type": "value", "value": 0.5, "text": "Degraded" },
+              { "type": "value", "value": 1, "text": "Healthy" }
+            ]
+          }
+        }
+      },
+      {
+        "id": 14,
+        "title": "Quality Metrics",
+        "type": "table",
+        "gridPos": { "x": 8, "y": 24, "w": 16, "h": 4 },
+        "targets": [
+          {
+            "expr": "rag_average_chunk_size_bytes",
+            "legendFormat": "Avg Chunk Size (bytes)",
+            "refId": "A",
+            "format": "table"
+          },
+          {
+            "expr": "rag_average_chunks_per_file",
+            "legendFormat": "Avg Chunks/File",
+            "refId": "B",
+            "format": "table"
+          },
+          {
+            "expr": "rag_index_freshness_days",
+            "legendFormat": "Index Freshness (days)",
+            "refId": "C",
+            "format": "table"
+          },
+          {
+            "expr": "rag_vector_score * 100",
+            "legendFormat": "Avg Vector Score (%)",
+            "refId": "D",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "merge"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -34,7 +34,8 @@ export class WebhooksService {
         issueId: issue?.id,
         identifier: issue?.identifier,
         stateName,
-        triggerStatus
+        triggerStatus,
+        linearProjectId: issue?.projectId
       });
 
       // Check if the issue moved to the trigger status
@@ -45,17 +46,27 @@ export class WebhooksService {
         });
 
         try {
+          // Map Linear projectId to DevFlow projectId
+          // TODO: Create a proper mapping table in database
+          const projectId = process.env.DEFAULT_PROJECT_ID;
+
+          this.logger.info('Using DevFlow projectId', {
+            devflowProjectId: projectId,
+            linearProjectId: issue.projectId
+          });
+
           // Start the DevFlow workflow
           const result = await this.workflowsService.start({
             taskId: issue.id,
-            projectId: issue.projectId || 'default',
+            projectId,
             userId: payload.actor?.id,
             workflowType: 'devflowWorkflow',
           });
 
           this.logger.info('Workflow started successfully', {
             workflowId: result.workflowId,
-            issueId: issue.id
+            issueId: issue.id,
+            projectId
           });
 
           return {

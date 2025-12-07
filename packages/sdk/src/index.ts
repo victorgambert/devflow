@@ -37,5 +37,8 @@ export * from './security';
 // Codebase Analysis
 export * from './codebase';
 
+// RAG (Retrieval-Augmented Generation)
+export * from './rag';
+
 // Factory functions
 export * from './factories';

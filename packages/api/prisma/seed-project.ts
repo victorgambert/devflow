@@ -25,7 +25,7 @@ async function main() {
       id: projectId,
       name: 'Indy Promocode',
       description: 'Promo code system for Indy',
-      repository: process.env.DEFAULT_REPO_URL || 'https://github.com/victorgambert/indy-promocode',
+      repository: process.env.DEFAULT_REPO_URL,
       config: {
         vcs: {
           provider: 'github',

@@ -112,10 +112,10 @@ export function formatContextForAI(context: CodebaseContext): string {
   if (context.structure.framework) {
     sections.push(`**Framework:** ${context.structure.framework}`);
   }
-  if (context.structure.mainPaths.src) {
+  if (context.structure.mainPaths?.src) {
     sections.push(`**Source:** ${context.structure.mainPaths.src}/`);
   }
-  if (context.structure.mainPaths.tests) {
+  if (context.structure.mainPaths?.tests) {
     sections.push(`**Tests:** ${context.structure.mainPaths.tests}/`);
   }
   sections.push('');
@@ -184,10 +184,10 @@ export function extractSpecGenerationContext(context: CodebaseContext): {
   return {
     language: context.structure.language,
     framework: context.structure.framework,
-    dependencies: context.dependencies.mainLibraries,
-    conventions: context.documentation.conventions,
-    patterns: context.documentation.patterns,
-    testingApproach: context.structure.mainPaths.tests
+    dependencies: context.dependencies?.mainLibraries || [],
+    conventions: context.documentation?.conventions || [],
+    patterns: context.documentation?.patterns || [],
+    testingApproach: context.structure.mainPaths?.tests
       ? `Tests are located in ${context.structure.mainPaths.tests}/`
       : undefined,
   };
@@ -209,23 +209,26 @@ export function extractCodeGenerationContext(context: CodebaseContext): {
     structureLines.push(`Framework: ${context.structure.framework}`);
   }
 
-  if (context.structure.mainPaths.src) {
+  if (context.structure.mainPaths?.src) {
     structureLines.push(`Source: ${context.structure.mainPaths.src}/`);
   }
 
-  if (context.structure.mainPaths.tests) {
+  if (context.structure.mainPaths?.tests) {
     structureLines.push(`Tests: ${context.structure.mainPaths.tests}/`);
   }
 
-  structureLines.push(`\nMain libraries: ${context.dependencies.mainLibraries.slice(0, 5).join(', ')}`);
+  const mainLibraries = context.dependencies?.mainLibraries || [];
+  if (mainLibraries.length > 0) {
+    structureLines.push(`\nMain libraries: ${mainLibraries.slice(0, 5).join(', ')}`);
+  }
 
   return {
     projectStructure: structureLines.join('\n'),
-    relevantFiles: context.similarCode.map((code) => ({
+    relevantFiles: (context.similarCode || []).map((code) => ({
       path: code.path,
       content: code.content.substring(0, 2000), // Limit content
     })),
-    conventions: context.documentation.conventions,
-    dependencies: context.dependencies.mainLibraries,
+    conventions: context.documentation?.conventions || [],
+    dependencies: mainLibraries,
   };
 }

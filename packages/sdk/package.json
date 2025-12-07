@@ -26,14 +26,22 @@
   "author": "DevFlow Team",
   "license": "MIT",
   "dependencies": {
+    "@babel/parser": "^7.23.6",
+    "@babel/traverse": "^7.23.6",
     "@devflow/common": "workspace:*",
     "@linear/sdk": "^29.0.0",
     "@octokit/rest": "^20.0.2",
     "@prisma/client": "^5.8.1",
+    "@qdrant/js-client-rest": "^1.11.0",
     "axios": "^1.6.5",
+    "cohere-ai": "^7.7.0",
+    "ioredis": "^5.3.2",
+    "openai": "^4.28.0",
+    "tiktoken": "^1.0.10",
     "yaml": "^2.3.4"
   },
   "devDependencies": {
+    "@types/babel__traverse": "^7.20.5",
     "@types/jest": "^29.5.11",
     "@types/node": "^20.19.24",
     "dotenv": "^16.6.1",

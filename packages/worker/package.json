@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node src/index.ts",
+    "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "clean": "rm -rf dist *.tsbuildinfo",
     "lint": "eslint src --ext .ts",
@@ -34,6 +34,7 @@
   "devDependencies": {
     "@types/node": "^20.11.5",
     "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }

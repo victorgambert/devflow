@@ -1,0 +1,232 @@
+groups:
+  - name: rag_alerts
+    interval: 30s
+    rules:
+      # Performance Alerts
+      - alert: HighRetrievalLatency
+        expr: rag_retrieval_duration_p95_ms > 500
+        for: 5m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "High RAG retrieval latency detected"
+          description: "P95 retrieval latency is {{ $value }}ms (threshold: 500ms). This may impact user experience."
+
+      - alert: CriticalRetrievalLatency
+        expr: rag_retrieval_duration_p99_ms > 1000
+        for: 5m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Critical RAG retrieval latency detected"
+          description: "P99 retrieval latency is {{ $value }}ms (threshold: 1000ms). Immediate action required."
+
+      - alert: HighIndexingDuration
+        expr: rag_indexing_duration_p95_ms > 300000
+        for: 10m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "High indexing duration detected"
+          description: "P95 indexing duration is {{ $value }}ms ({{ humanizeDuration $value }}). This is taking longer than expected."
+
+      # Quality Alerts
+      - alert: LowRelevanceScore
+        expr: rag_retrieval_relevance_score < 0.6
+        for: 10m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Low average relevance score"
+          description: "Average relevance score is {{ $value | humanizePercentage }} (threshold: 60%). Retrieved results may not be relevant."
+
+      - alert: CriticalLowRelevanceScore
+        expr: rag_retrieval_relevance_score < 0.4
+        for: 5m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Critical low relevance score"
+          description: "Average relevance score is {{ $value | humanizePercentage }} (threshold: 40%). System is returning poor results."
+
+      # Cache Alerts
+      - alert: LowCacheHitRate
+        expr: rag_cache_hit_rate < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Low cache hit rate detected"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (threshold: 50%). This increases costs and latency."
+
+      - alert: CriticalLowCacheHitRate
+        expr: rag_cache_hit_rate < 0.3
+        for: 10m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Critical low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (threshold: 30%). Cache may be misconfigured."
+
+      # Cost Alerts
+      - alert: HighMonthlyCost
+        expr: rag_monthly_cost_usd > 100
+        for: 1h
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "High estimated monthly cost"
+          description: "Estimated monthly cost is ${{ $value }} (threshold: $100). Review usage patterns."
+
+      - alert: CriticalMonthlyCost
+        expr: rag_monthly_cost_usd > 500
+        for: 30m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Critical monthly cost projection"
+          description: "Estimated monthly cost is ${{ $value }} (threshold: $500). Immediate cost optimization required."
+
+      - alert: HighCostPerRetrieval
+        expr: rag_cost_per_retrieval_usd > 0.001
+        for: 1h
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "High cost per retrieval"
+          description: "Cost per retrieval is ${{ $value }} (threshold: $0.001). Consider optimizing reranking usage."
+
+      # Indexing Alerts
+      - alert: IndexingFailureRate
+        expr: rate(rag_indexing_failures_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "High indexing failure rate"
+          description: "Indexing failure rate is {{ $value | humanizePercentage }}. Check logs for errors."
+
+      - alert: CriticalIndexingFailures
+        expr: rate(rag_indexing_failures_total[5m]) > 0.3
+        for: 5m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Critical indexing failure rate"
+          description: "Indexing failure rate is {{ $value | humanizePercentage }}. System may be unable to index repositories."
+
+      - alert: LowIndexingSuccessRate
+        expr: rag_indexing_success_rate < 0.8
+        for: 15m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Low indexing success rate"
+          description: "Indexing success rate is {{ $value | humanizePercentage }} (threshold: 80%). Investigate failures."
+
+      # Health Alerts
+      - alert: QdrantDown
+        expr: rag_qdrant_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Qdrant vector store is down"
+          description: "Qdrant is unreachable. RAG retrieval will fail until restored."
+
+      - alert: QdrantDegraded
+        expr: rag_qdrant_status == 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Qdrant vector store is degraded"
+          description: "Qdrant health is degraded. Performance may be impacted."
+
+      - alert: RedisDown
+        expr: rag_redis_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis is unreachable. Cache will not function, increasing costs and latency."
+
+      - alert: RedisDegraded
+        expr: rag_redis_status == 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Redis cache is degraded"
+          description: "Redis health is degraded. Cache performance may be impacted."
+
+      # Quality Degradation
+      - alert: StaleIndex
+        expr: rag_index_freshness_days > 14
+        for: 1h
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "Index is becoming stale"
+          description: "Average index age is {{ $value }} days (threshold: 14 days). Consider reindexing."
+
+      - alert: CriticalStaleIndex
+        expr: rag_index_freshness_days > 30
+        for: 1h
+        labels:
+          severity: critical
+          component: rag
+        annotations:
+          summary: "Index is critically stale"
+          description: "Average index age is {{ $value }} days (threshold: 30 days). Reindexing required."
+
+      # Vector Store Alerts
+      - alert: HighVectorStoreQueryLatency
+        expr: rag_vectorstore_query_latency_ms > 100
+        for: 10m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "High vector store query latency"
+          description: "Vector store query latency is {{ $value }}ms (threshold: 100ms). May need optimization or scaling."
+
+      # Anomaly Detection
+      - alert: SuddenRetrievalSpike
+        expr: rate(rag_retrievals_total[5m]) > 2 * rate(rag_retrievals_total[1h] offset 1h)
+        for: 5m
+        labels:
+          severity: info
+          component: rag
+        annotations:
+          summary: "Sudden spike in retrieval rate"
+          description: "Retrieval rate has doubled compared to 1 hour ago. Monitor for abuse or legitimate traffic increase."
+
+      - alert: NoRetrievalsRecent
+        expr: rate(rag_retrievals_total[30m]) == 0
+        for: 30m
+        labels:
+          severity: warning
+          component: rag
+        annotations:
+          summary: "No retrievals in last 30 minutes"
+          description: "No retrieval activity detected. System may be down or not receiving traffic."

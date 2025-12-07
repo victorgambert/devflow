@@ -33,6 +33,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.11.3
+    container_name: devflow-qdrant
+    restart: unless-stopped
+    ports:
+      - '6333:6333'
+      - '6334:6334'
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6333/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Temporal Server
   temporal:
     image: temporalio/auto-setup:1.22.4
@@ -87,11 +105,15 @@ services:
       - DATABASE_PASSWORD=changeme
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
       - TEMPORAL_ADDRESS=temporal:7233
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
       temporal:
         condition: service_started
@@ -121,11 +143,15 @@ services:
       - DATABASE_PASSWORD=changeme
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
       - TEMPORAL_ADDRESS=temporal:7233
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
       temporal:
         condition: service_started
@@ -156,5 +182,6 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  qdrant-data:
   temporal-data:
 

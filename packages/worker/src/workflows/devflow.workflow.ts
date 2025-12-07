@@ -28,6 +28,10 @@ const {
   runTests,
   analyzeTestFailures,
   waitForCI: waitForCIWithRetry,
+  // RAG activities
+  checkIndexStatus,
+  retrieveContext,
+  indexRepository,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: '30 minutes',
   retry: {
@@ -70,10 +74,66 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
     });
 
     // ============================================
-    // Stage 2: Generate specification
+    // Stage 1.5: RAG Context Retrieval
+    // ============================================
+    // Check if codebase index needs updating
+    const indexStatus = await checkIndexStatus({ projectId: input.projectId });
+
+    if (indexStatus.needsIndexing) {
+      // Trigger background indexing (non-blocking)
+      // In production, this would be done via webhook, but we can trigger it here too
+      await sendNotification({
+        projectId: input.projectId,
+        event: 'indexing_needed',
+        data: { reason: indexStatus.reason },
+      });
+    }
+
+    // Retrieve relevant code context using RAG
+    let ragContext;
+    try {
+      ragContext = await retrieveContext({
+        projectId: input.projectId,
+        query: `${task.title}\n${task.description}`,
+        topK: 10,
+        useReranking: true,
+      });
+
+      // Fail if no context was retrieved
+      if (!ragContext || ragContext.chunks.length === 0) {
+        throw new ApplicationFailure(
+          'No relevant code context found for this task. The codebase may not be indexed yet.',
+          'NoRAGContext',
+          false,
+        );
+      }
+
+      await sendNotification({
+        projectId: input.projectId,
+        event: 'context_retrieved',
+        data: { chunks: ragContext.chunks.length, retrievalTime: ragContext.retrievalTimeMs },
+      });
+    } catch (error) {
+      // RAG retrieval failed - fail the workflow
+      await sendNotification({
+        projectId: input.projectId,
+        event: 'context_retrieval_failed',
+        data: { error: error instanceof Error ? error.message : String(error) },
+      });
+
+      // Re-throw to fail the workflow
+      throw error;
+    }
+
+    // ============================================
+    // Stage 2: Generate specification WITH RAG
     // ============================================
     currentStage = 'spec_generation' as WorkflowStage;
-    const spec = await generateSpecification({ task, projectId: input.projectId });
+    const spec = await generateSpecification({
+      task,
+      projectId: input.projectId,
+      ragContext: ragContext,
+    });
 
     // Update Linear status to "Spec Ready"
     await updateLinearTask({
@@ -101,6 +161,33 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       event: 'spec_generated',
       data: { taskId: task.id, spec },
     });
+
+    // ============================================
+    // STOP HERE: Spec generation completed
+    // Code generation should be triggered manually
+    // ============================================
+    await sendNotification({
+      projectId: input.projectId,
+      event: 'workflow_completed',
+      data: {
+        taskId: task.id,
+        title: task.title,
+        stage: 'spec_generation',
+        message: 'Specification generated successfully. Code generation must be triggered manually.',
+      },
+    });
+
+    return {
+      success: true,
+      stage: 'spec_generation' as WorkflowStage,
+      data: {
+        task,
+        spec,
+        completed: true,
+        message: 'Specification generated successfully. Code generation must be triggered manually.',
+      },
+      timestamp: new Date(),
+    };
 
     // ============================================
     // Stage 3: Generate code

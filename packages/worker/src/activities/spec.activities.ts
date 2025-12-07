@@ -12,6 +12,16 @@ const logger = createLogger('SpecActivities');
 export interface GenerateSpecificationInput {
   task: any;
   projectId: string;
+  ragContext?: {
+    chunks: Array<{
+      filePath: string;
+      content: string;
+      score: number;
+      language: string;
+    }>;
+    retrievalTimeMs: number;
+    totalChunks: number;
+  };
 }
 
 export interface GenerateSpecificationOutput {
@@ -52,22 +62,75 @@ export async function generateSpecification(
   logger.info('Generating specification', input);
 
   try {
-    // Analyze codebase context
-    logger.info('Analyzing repository context');
-    const codebaseContext = await analyzeRepositoryContext({
-      projectId: input.projectId,
-      taskDescription: input.task.description,
-    });
+    let codebaseContext;
+    let specContext;
+    let usingRAG = false;
 
-    // Extract relevant context for spec generation
-    const specContext = extractSpecGenerationContext(codebaseContext);
+    // Use RAG context if available, otherwise fallback to legacy analysis
+    if (input.ragContext && input.ragContext.chunks.length > 0) {
+      logger.info('Using RAG context for spec generation', {
+        chunks: input.ragContext.chunks.length,
+        retrievalTime: input.ragContext.retrievalTimeMs,
+      });
 
-    logger.info('Repository context analyzed', {
-      language: specContext.language,
-      framework: specContext.framework,
-      dependencies: specContext.dependencies.length,
-      conventions: specContext.conventions.length,
-    });
+      usingRAG = true;
+
+      // Build codebase context from RAG chunks
+      const languages = [...new Set(input.ragContext.chunks.map(c => c.language))];
+      const primaryLanguage = languages[0] || 'unknown';
+
+      codebaseContext = {
+        structure: {
+          language: primaryLanguage,
+          framework: undefined, // Will be inferred from code
+        },
+        dependencies: {
+          mainLibraries: [],
+          devDependencies: [],
+          allDependencies: [],
+        },
+        similarCode: input.ragContext.chunks.map(chunk => ({
+          path: chunk.filePath,
+          content: chunk.content,
+          relevanceScore: chunk.score * 100,
+          reason: `RAG retrieval (score: ${chunk.score.toFixed(2)})`,
+        })),
+        documentation: {
+          conventions: [],
+          codeStyle: [],
+          architectureNotes: [],
+          patterns: [], // Add missing patterns property
+        },
+        timestamp: new Date(),
+      };
+
+      // Extract spec context
+      specContext = extractSpecGenerationContext(codebaseContext);
+
+      logger.info('RAG context processed', {
+        language: primaryLanguage,
+        chunks: input.ragContext.chunks.length,
+        files: [...new Set(input.ragContext.chunks.map(c => c.filePath))].length,
+      });
+    } else {
+      logger.info('No RAG context available, using legacy repository analysis');
+
+      // Fallback to legacy analysis
+      codebaseContext = await analyzeRepositoryContext({
+        projectId: input.projectId,
+        taskDescription: input.task.description,
+      });
+
+      // Extract relevant context for spec generation
+      specContext = extractSpecGenerationContext(codebaseContext);
+
+      logger.info('Repository context analyzed', {
+        language: specContext.language,
+        framework: specContext.framework,
+        dependencies: specContext.dependencies.length,
+        conventions: specContext.conventions.length,
+      });
+    }
 
     // Check if multi-LLM is enabled
     const useMultiLLM = process.env.ENABLE_MULTI_LLM === 'true';
@@ -142,6 +205,8 @@ export async function generateSpecification(
         conventions: codebaseContext.documentation.conventions.length,
         similarCode: codebaseContext.similarCode.length,
         filesAnalyzed: codebaseContext.similarCode.map((code) => code.path),
+        ragUsed: usingRAG, // Flag indicating RAG was used
+        ragRetrievalTime: usingRAG ? input.ragContext?.retrievalTimeMs : undefined,
       },
       multiLLM: multiLLMResults,
     };

@@ -26,3 +26,18 @@ export * from './qa.activities';
 
 // Phase 4: Security activities
 export * from './security.activities';
+
+// RAG activities
+export {
+  indexRepository,
+  retrieveContext,
+  checkIndexStatus,
+  updateRepositoryIndex,
+  type IndexRepositoryInput,
+  type IndexRepositoryOutput,
+  type RetrieveContextInput,
+  type RetrieveContextOutput,
+  type CheckIndexStatusOutput,
+  type UpdateRepositoryIndexInput,
+  type UpdateRepositoryIndexOutput,
+} from './rag.activities';
