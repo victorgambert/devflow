@@ -17,6 +17,7 @@ const {
   generateRefinement,
   appendRefinementToLinearIssue,
   createLinearSubtasks,
+  addTaskTypeLabel,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5 minutes',
   retry: {
@@ -77,6 +78,17 @@ export async function refinementWorkflow(
       projectId: input.projectId,
       externalLinks: task.externalLinks,
     });
+
+    // Step 3.5: Add task type label based on detected type (non-blocking)
+    // Automatically adds feature/bug/enhancement/chore label
+    if (task.teamId) {
+      await addTaskTypeLabel({
+        projectId: input.projectId,
+        issueId: task.linearId,
+        teamId: task.teamId,
+        taskType: result.refinement.taskType,
+      });
+    }
 
     // Step 4: Append refinement to Linear issue
     await appendRefinementToLinearIssue({

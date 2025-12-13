@@ -4,7 +4,7 @@
 
 import { LinearClient as LinearSDK, Issue, WorkflowState } from '@linear/sdk';
 import { createLogger } from '@devflow/common';
-import { LinearConfig, LinearIssue, LinearQueryOptions, LinearTask } from '@/linear/linear.types';
+import { LinearConfig, LinearIssue, LinearLabel, LinearQueryOptions, LinearTask } from '@/linear/linear.types';
 import { LinearMapper } from '@/linear/linear.mapper';
 
 export class LinearClient {
@@ -334,6 +334,94 @@ export class LinearClient {
       key: t.key,
       name: t.name,
     }));
+  }
+
+  // ============================================
+  // Label Operations
+  // ============================================
+
+  /**
+   * Get all labels for a team
+   */
+  async getTeamLabels(teamId: string): Promise<LinearLabel[]> {
+    this.logger.info('Getting labels for team', { teamId });
+
+    try {
+      const team = await this.client.team(teamId);
+      const labels = await team.labels();
+
+      const result = labels.nodes.map(l => ({
+        id: l.id,
+        name: l.name,
+        color: l.color,
+      }));
+
+      this.logger.info('Team labels retrieved', { teamId, count: result.length });
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to get team labels', error as Error, { teamId });
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new label in a team
+   */
+  async createLabel(teamId: string, name: string, color?: string): Promise<LinearLabel> {
+    this.logger.info('Creating label', { teamId, name, color });
+
+    try {
+      const result = await this.client.createIssueLabel({
+        teamId,
+        name,
+        color: color || undefined,
+      });
+
+      const label = await result.issueLabel;
+
+      if (!label) {
+        throw new Error('Label creation returned null');
+      }
+
+      this.logger.info('Label created', { id: label.id, name: label.name });
+
+      return {
+        id: label.id,
+        name: label.name,
+        color: label.color,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create label', error as Error, { teamId, name });
+      throw error;
+    }
+  }
+
+  /**
+   * Add labels to an existing issue (preserves existing labels)
+   */
+  async addLabelsToIssue(issueId: string, labelIds: string[]): Promise<void> {
+    this.logger.info('Adding labels to issue', { issueId, labelIds });
+
+    try {
+      // Get current labels to preserve them
+      const issue = await this.getIssue(issueId);
+      const currentLabels = await issue.labels();
+      const currentLabelIds = currentLabels.nodes.map(l => l.id);
+
+      // Merge: keep existing + add new (avoid duplicates)
+      const allLabelIds = [...new Set([...currentLabelIds, ...labelIds])];
+
+      await this.client.updateIssue(issueId, { labelIds: allLabelIds });
+
+      this.logger.info('Labels added to issue', {
+        issueId,
+        newCount: labelIds.length,
+        totalCount: allLabelIds.length,
+      });
+    } catch (error) {
+      this.logger.error('Failed to add labels to issue', error as Error, { issueId });
+      throw error;
+    }
   }
 
   // ============================================

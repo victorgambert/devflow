@@ -20,6 +20,12 @@ export {
   type ValidateSetupResult,
 } from './linear/linear-setup.service';
 export {
+  LabelService,
+  createLabelService,
+  TASK_TYPE_LABELS,
+  type TaskType,
+} from './linear/label.service';
+export {
   formatSpecAsMarkdown,
   formatWarningMessage,
   formatSpecWithWarning,
@@ -27,9 +33,21 @@ export {
   formatUserStoryAsMarkdown,
   formatTechnicalPlanAsMarkdown,
 } from './linear/spec-formatter';
+export {
+  LinearSyncService,
+  createLinearSyncService,
+  TASK_TO_LINEAR_FIELD_MAP,
+  type TaskFieldKey,
+  type SyncDirection,
+  type LinearFullIssue,
+  type TaskSyncData,
+  type SyncDiff,
+  type SyncResult,
+} from './linear/linear-sync.service';
 export type {
   LinearConfig,
   LinearIssue,
+  LinearLabel,
   LinearTask,
   LinearState,
   LinearTeam,

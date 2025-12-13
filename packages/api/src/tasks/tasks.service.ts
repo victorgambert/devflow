@@ -1,30 +1,36 @@
 /**
  * Tasks Service - Refactored with Prisma + Linear Integration
+ * Bidirectional sync: DB ↔ Linear
  */
 
-import { Injectable, NotFoundException, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, forwardRef, Inject, Optional } from '@nestjs/common';
 import { createLogger } from '@devflow/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { LinearClient } from '@devflow/sdk';
 import { ConfigService } from '@nestjs/config';
 import { CreateTaskDto, UpdateTaskDto } from '@/tasks/dto';
 import { WorkflowsService } from '@/workflows/workflows.service';
+import { LinearSyncApiService } from '@/linear/linear-sync-api.service';
 
 @Injectable()
 export class TasksService {
   private logger = createLogger('TasksService');
-  private linearClient: LinearClient | null = null;
+
+  /** Auto-sync Task updates to Linear */
+  private autoSyncToLinear: boolean;
 
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
     @Inject(forwardRef(() => WorkflowsService))
     private workflowsService: WorkflowsService,
+    @Optional() private linearSyncService?: LinearSyncApiService,
   ) {
-    // Linear client will be initialized per-project using OAuth
-    // TODO: Implement per-project Linear OAuth in Phase 5
-    this.linearClient = null;
-    this.logger.info('TasksService initialized - Linear OAuth per-project coming in Phase 5');
+    // Enable auto-sync to Linear by default
+    this.autoSyncToLinear = process.env.LINEAR_AUTO_SYNC_TO_LINEAR !== 'false';
+    this.logger.info('TasksService initialized', {
+      autoSyncToLinear: this.autoSyncToLinear,
+      linearSyncServiceAvailable: !!this.linearSyncService,
+    });
   }
 
   async findAll() {
@@ -133,10 +139,25 @@ export class TasksService {
       }
     }
 
-    // Sync back to Linear if task has linearId
-    if (this.linearClient && updated.linearId) {
+    // Auto-sync back to Linear if task has linearId
+    if (this.autoSyncToLinear && this.linearSyncService && updated.linearId) {
       try {
-        await this.syncTaskToLinear(updated);
+        this.logger.info('Auto-syncing task to Linear', {
+          taskId: id,
+          linearId: updated.linearId,
+        });
+
+        const syncResult = await this.linearSyncService.syncTaskToLinear(
+          updated.projectId,
+          id,
+        );
+
+        this.logger.info('Task synced to Linear', {
+          taskId: id,
+          linearId: updated.linearId,
+          synced: syncResult.synced,
+          errors: syncResult.errors,
+        });
       } catch (error) {
         this.logger.error('Failed to sync task to Linear', error as Error, { id });
         // Don't fail the update if Linear sync fails
@@ -144,120 +165,6 @@ export class TasksService {
     }
 
     return updated;
-  }
-
-  /**
-   * Sync tasks from Linear to local database
-   */
-  async syncFromLinear(projectId?: string, status?: string) {
-    if (!this.linearClient) {
-      throw new Error('Linear not configured');
-    }
-
-    this.logger.info('Syncing tasks from Linear', { projectId, status });
-
-    try {
-      // Get tasks from Linear (optionally filtered by status)
-      const linearTasks = status
-        ? await this.linearClient.queryIssuesByStatus(status)
-        : await this.linearClient.queryIssues({ first: 100 });
-
-      this.logger.info('Retrieved tasks from Linear', { count: linearTasks.length });
-
-      let synced = 0;
-      let created = 0;
-      let updated = 0;
-
-      for (const linearTask of linearTasks) {
-        try {
-          // Check if task exists by linearId
-          const existing = await this.prisma.task.findUnique({
-            where: { linearId: linearTask.linearId },
-          });
-
-          const taskData = {
-            title: linearTask.title,
-            description: linearTask.description || '',
-            status: this.mapLinearStatus(linearTask.status),
-            priority: this.mapLinearPriority(linearTask.priority),
-            assignee: linearTask.assignee,
-            labels: linearTask.labels || [],
-          };
-
-          if (existing) {
-            // Check if status changed to SPECIFICATION
-            const statusChanged = taskData.status !== existing.status;
-            const movedToSpecification = statusChanged && taskData.status === 'SPECIFICATION';
-
-            // Update existing task
-            await this.prisma.task.update({
-              where: { id: existing.id },
-              data: taskData,
-            });
-            updated++;
-
-            // Trigger spec generation if moved to SPECIFICATION
-            if (movedToSpecification) {
-              this.logger.info('Task synced with SPECIFICATION status, triggering spec generation', {
-                taskId: existing.id,
-                linearId: linearTask.linearId,
-              });
-
-              try {
-                await this.workflowsService.startSpecGeneration(
-                  linearTask.linearId,
-                  projectId || existing.projectId,
-                  'system',
-                );
-              } catch (error) {
-                this.logger.error('Failed to start spec generation workflow during sync', error as Error);
-              }
-            }
-          } else if (projectId) {
-            // Create new task
-            await this.prisma.task.create({
-              data: {
-                ...taskData,
-                projectId,
-                linearId: linearTask.linearId,
-              },
-            });
-            created++;
-          }
-
-          synced++;
-        } catch (error) {
-          this.logger.error('Failed to sync task', error as Error, {
-            linearId: linearTask.linearId,
-          });
-        }
-      }
-
-      this.logger.info('Sync completed', { synced, created, updated });
-
-      return {
-        synced,
-        created,
-        updated,
-        total: linearTasks.length,
-      };
-    } catch (error) {
-      this.logger.error('Failed to sync from Linear', error as Error);
-      throw error;
-    }
-  }
-
-  /**
-   * Sync a task to Linear
-   */
-  private async syncTaskToLinear(task: any) {
-    if (!this.linearClient || !task.linearId) {
-      return;
-    }
-
-    this.logger.info('Syncing task to Linear', { id: task.id, linearId: task.linearId });
-
-    await this.linearClient.updateStatus(task.linearId, this.mapStatusToLinear(task.status));
   }
 
   /**
@@ -324,62 +231,71 @@ export class TasksService {
     };
   }
 
-  // Status mapping helpers
-  private mapLinearStatus(linearStatus: string): any {
-    const normalizedStatus = linearStatus.toLowerCase();
+  /**
+   * Sync tasks from Linear (manual trigger)
+   * Note: Tasks are now auto-synced via webhooks, this is for manual sync
+   */
+  async syncFromLinear(projectId?: string, _status?: string) {
+    if (!this.linearSyncService) {
+      throw new Error('LinearSyncApiService not available');
+    }
 
-    if (normalizedStatus.includes('backlog') || normalizedStatus.includes('triage') || normalizedStatus.includes('todo')) {
-      return 'TODO';
+    if (!projectId) {
+      projectId = process.env.DEFAULT_PROJECT_ID;
     }
-    if (normalizedStatus.includes('spec')) {
-      return 'SPECIFICATION';
-    }
-    if (normalizedStatus.includes('progress') || normalizedStatus.includes('doing')) {
-      return 'IN_PROGRESS';
-    }
-    if (normalizedStatus.includes('review')) {
-      return 'IN_REVIEW';
-    }
-    if (normalizedStatus.includes('test') || normalizedStatus.includes('qa')) {
-      return 'TESTING';
-    }
-    if (normalizedStatus.includes('done') || normalizedStatus.includes('complete') || normalizedStatus.includes('closed')) {
-      return 'DONE';
-    }
-    if (normalizedStatus.includes('block') || normalizedStatus.includes('cancel')) {
-      return 'BLOCKED';
-    }
-    return 'TODO';
-  }
 
-  private mapStatusToLinear(status: string): string {
-    const statusMap: Record<string, string> = {
-      TODO: 'Todo',
-      SPECIFICATION: 'Spec Ready',
-      IN_PROGRESS: 'In Progress',
-      IN_REVIEW: 'In Review',
-      TESTING: 'Testing',
-      DONE: 'Done',
-      BLOCKED: 'Blocked',
+    if (!projectId) {
+      throw new Error('projectId is required (or set DEFAULT_PROJECT_ID)');
+    }
+
+    this.logger.info('Manual sync from Linear requested', { projectId });
+
+    // Get all tasks with linearId for this project
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        projectId,
+        linearId: { not: null },
+      },
+      select: {
+        id: true,
+        linearId: true,
+      },
+    });
+
+    let synced = 0;
+    let updated = 0;
+    let errors = 0;
+
+    for (const task of tasks) {
+      if (!task.linearId) continue;
+
+      try {
+        const result = await this.linearSyncService.syncIssueToDatabase(
+          projectId,
+          task.linearId,
+        );
+
+        synced++;
+        if (result.action === 'updated') {
+          updated++;
+        }
+      } catch (error) {
+        this.logger.error('Failed to sync task from Linear', error as Error, {
+          taskId: task.id,
+          linearId: task.linearId,
+        });
+        errors++;
+      }
+    }
+
+    this.logger.info('Manual sync completed', { synced, updated, errors });
+
+    return {
+      synced,
+      updated,
+      errors,
+      total: tasks.length,
+      message: 'Tasks are auto-synced via webhooks. This manual sync is for recovery purposes.',
     };
-    return statusMap[status] || 'Todo';
-  }
-
-  private mapLinearPriority(linearPriority: string): any {
-    const normalizedPriority = linearPriority.toLowerCase();
-
-    if (normalizedPriority.includes('urgent') || normalizedPriority.includes('critical')) {
-      return 'CRITICAL';
-    }
-    if (normalizedPriority.includes('high')) {
-      return 'HIGH';
-    }
-    if (normalizedPriority.includes('medium') || normalizedPriority.includes('normal')) {
-      return 'MEDIUM';
-    }
-    if (normalizedPriority.includes('low')) {
-      return 'LOW';
-    }
-    return 'MEDIUM';
   }
 }

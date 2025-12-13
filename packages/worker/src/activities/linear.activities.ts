@@ -11,6 +11,7 @@ import type {
 } from '@devflow/common';
 import {
   createLinearClient,
+  createLabelService,
   formatSpecAsMarkdown,
   formatWarningMessage,
   formatRefinementAsMarkdown,
@@ -63,6 +64,8 @@ export interface SyncLinearTaskOutput {
   assignee?: string;
   labels?: string[];
   url: string;
+  /** Team ID - required for label operations (optional for query operations) */
+  teamId?: string;
   acceptanceCriteria?: string[];
   /** Parsed external links (Figma, Sentry, GitHub Issues) from description */
   externalLinks?: ExternalContextLinks;
@@ -89,7 +92,15 @@ export async function syncLinearTask(input: SyncLinearTaskInput): Promise<SyncLi
     const client = createLinearClient(apiKey);
     const task = await client.getTask(input.taskId);
 
-    logger.info('Task synced from Linear', { identifier: task.identifier });
+    // Get team ID from the issue (required for label operations)
+    const issue = await client.getIssue(input.taskId);
+    const team = await issue.team;
+    if (!team) {
+      throw new Error(`Issue ${input.taskId} has no team`);
+    }
+    const teamId = team.id;
+
+    logger.info('Task synced from Linear', { identifier: task.identifier, teamId });
 
     // Extract acceptance criteria from description (lines starting with "- [ ]" or "- [x]")
     const acceptanceCriteria = extractAcceptanceCriteria(task.description);
@@ -175,6 +186,7 @@ export async function syncLinearTask(input: SyncLinearTaskInput): Promise<SyncLi
       assignee: task.assignee,
       labels: task.labels,
       url: task.url,
+      teamId,
       acceptanceCriteria,
       externalLinks,
       figmaUrl,
@@ -689,6 +701,61 @@ export async function createLinearSubtasks(input: {
   } catch (error) {
     logger.error('Failed to create sub-issues', error as Error);
     throw error;
+  }
+}
+
+/**
+ * Add task type label to a Linear issue
+ * Creates the label if it doesn't exist in the team
+ *
+ * Non-blocking: If labeling fails, logs warning but doesn't throw
+ * Idempotent: Skips if issue already has a task type label
+ */
+export async function addTaskTypeLabel(input: {
+  projectId: string;
+  issueId: string;
+  teamId: string;
+  taskType: string;
+}): Promise<{ labelId: string; created: boolean }> {
+  logger.info('Adding task type label to issue', {
+    issueId: input.issueId,
+    taskType: input.taskType,
+  });
+
+  const apiKey = await resolveLinearApiKey(input.projectId);
+  const client = createLinearClient(apiKey);
+  const labelService = createLabelService(client);
+
+  try {
+    // Check if issue already has a task type label
+    const hasLabel = await labelService.hasTaskTypeLabel(input.issueId);
+
+    if (hasLabel) {
+      logger.info('Issue already has a task type label, skipping', {
+        issueId: input.issueId,
+      });
+      return { labelId: '', created: false };
+    }
+
+    // Ensure label exists (get or create)
+    const labelId = await labelService.ensureTaskTypeLabel(input.teamId, input.taskType);
+
+    // Add label to issue
+    await client.addLabelsToIssue(input.issueId, [labelId]);
+
+    logger.info('Task type label added', {
+      issueId: input.issueId,
+      taskType: input.taskType,
+      labelId,
+    });
+
+    return { labelId, created: true };
+  } catch (error) {
+    logger.error('Failed to add task type label', error as Error, input);
+    // Non-critical operation - log but don't throw
+    // This allows the workflow to continue even if labeling fails
+    logger.warn('Continuing workflow despite label failure');
+    return { labelId: '', created: false };
   }
 }
 
