@@ -46,5 +46,11 @@ export * from './rag';
 // Auth
 export * from './auth';
 
+// Figma
+export * from './figma';
+
+// Sentry
+export * from './sentry';
+
 // Factory functions
 export * from './factories';

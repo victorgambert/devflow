@@ -14,9 +14,14 @@ import {
 import { OAuthProvider } from '@prisma/client';
 import { OAuthService } from '@/auth/services/oauth.service';
 
+// Supported OAuth providers
+const SUPPORTED_PROVIDERS = ['GITHUB', 'LINEAR', 'SENTRY', 'FIGMA', 'GITHUB_ISSUES'] as const;
+const DEVICE_FLOW_PROVIDERS = ['GITHUB', 'GITHUB_ISSUES'] as const;
+const AUTH_CODE_PROVIDERS = ['LINEAR', 'SENTRY', 'FIGMA'] as const;
+
 /**
  * Auth Controller
- * Handles OAuth Device Flow endpoints
+ * Handles OAuth Device Flow and Authorization Code Flow endpoints
  */
 @Controller('auth')
 export class AuthController {
@@ -44,9 +49,9 @@ export class AuthController {
     }
 
     const upperProvider = provider.toUpperCase() as OAuthProvider;
-    if (!['GITHUB', 'LINEAR'].includes(upperProvider)) {
+    if (!DEVICE_FLOW_PROVIDERS.includes(upperProvider as typeof DEVICE_FLOW_PROVIDERS[number])) {
       throw new BadRequestException(
-        'Invalid provider. Supported: github, linear',
+        `Invalid provider for Device Flow. Supported: ${DEVICE_FLOW_PROVIDERS.join(', ').toLowerCase()}`,
       );
     }
 
@@ -90,9 +95,9 @@ export class AuthController {
     }
 
     const upperProvider = provider.toUpperCase() as OAuthProvider;
-    if (!['GITHUB', 'LINEAR'].includes(upperProvider)) {
+    if (!DEVICE_FLOW_PROVIDERS.includes(upperProvider as typeof DEVICE_FLOW_PROVIDERS[number])) {
       throw new BadRequestException(
-        'Invalid provider. Supported: github, linear',
+        `Invalid provider for Device Flow. Supported: ${DEVICE_FLOW_PROVIDERS.join(', ').toLowerCase()}`,
       );
     }
 
@@ -201,6 +206,162 @@ export class AuthController {
   }
 
   /**
+   * Initiate Sentry OAuth Authorization Code Flow
+   * POST /auth/sentry/authorize
+   *
+   * Body: { projectId: string }
+   * Returns: { authorizationUrl: string }
+   */
+  @Post('sentry/authorize')
+  @HttpCode(HttpStatus.OK)
+  async initiateSentryAuth(@Body('projectId') projectId: string) {
+    this.logger.log(`Initiating Sentry OAuth for project ${projectId}`);
+
+    if (!projectId) {
+      throw new BadRequestException('projectId is required');
+    }
+
+    try {
+      const result = await this.oauthService.initiateAuthorizationCodeFlow(
+        projectId,
+        'SENTRY',
+      );
+
+      return {
+        authorizationUrl: result.authorizationUrl,
+        message: 'Please visit the authorization URL in your browser',
+      };
+    } catch (error) {
+      this.logger.error(`Failed to initiate Sentry OAuth`, error);
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Sentry OAuth callback
+   * GET /auth/sentry/callback?code=xxx&state=xxx&project=projectId
+   *
+   * This endpoint receives the authorization code from Sentry after user authorization
+   */
+  @Get('sentry/callback')
+  async sentryCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('project') projectId: string,
+  ) {
+    this.logger.log(`Sentry OAuth callback received for project ${projectId}`);
+
+    if (!code || !state || !projectId) {
+      throw new BadRequestException('code, state, and project are required');
+    }
+
+    try {
+      const connection = await this.oauthService.exchangeAuthorizationCode(
+        projectId,
+        'SENTRY',
+        code,
+        state,
+      );
+
+      return {
+        success: true,
+        message: 'Sentry OAuth connection established successfully!',
+        connection: {
+          id: connection.id,
+          projectId: connection.projectId,
+          provider: connection.provider,
+          scopes: connection.scopes,
+          providerUserId: connection.providerUserId,
+          providerEmail: connection.providerEmail,
+          isActive: connection.isActive,
+          createdAt: connection.createdAt,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to complete Sentry OAuth callback`, error);
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Initiate Figma OAuth Authorization Code Flow
+   * POST /auth/figma/authorize
+   *
+   * Body: { projectId: string }
+   * Returns: { authorizationUrl: string }
+   */
+  @Post('figma/authorize')
+  @HttpCode(HttpStatus.OK)
+  async initiateFigmaAuth(@Body('projectId') projectId: string) {
+    this.logger.log(`Initiating Figma OAuth for project ${projectId}`);
+
+    if (!projectId) {
+      throw new BadRequestException('projectId is required');
+    }
+
+    try {
+      const result = await this.oauthService.initiateAuthorizationCodeFlow(
+        projectId,
+        'FIGMA',
+      );
+
+      return {
+        authorizationUrl: result.authorizationUrl,
+        message: 'Please visit the authorization URL in your browser',
+      };
+    } catch (error) {
+      this.logger.error(`Failed to initiate Figma OAuth`, error);
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * Figma OAuth callback
+   * GET /auth/figma/callback?code=xxx&state=xxx&project=projectId
+   *
+   * This endpoint receives the authorization code from Figma after user authorization
+   */
+  @Get('figma/callback')
+  async figmaCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('project') projectId: string,
+  ) {
+    this.logger.log(`Figma OAuth callback received for project ${projectId}`);
+
+    if (!code || !state || !projectId) {
+      throw new BadRequestException('code, state, and project are required');
+    }
+
+    try {
+      const connection = await this.oauthService.exchangeAuthorizationCode(
+        projectId,
+        'FIGMA',
+        code,
+        state,
+      );
+
+      return {
+        success: true,
+        message: 'Figma OAuth connection established successfully!',
+        connection: {
+          id: connection.id,
+          projectId: connection.projectId,
+          provider: connection.provider,
+          scopes: connection.scopes,
+          providerUserId: connection.providerUserId,
+          providerEmail: connection.providerEmail,
+          isActive: connection.isActive,
+          createdAt: connection.createdAt,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Failed to complete Figma OAuth callback`, error);
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
    * Get OAuth connections for a project
    * GET /auth/connections?project={projectId}
    *
@@ -252,9 +413,9 @@ export class AuthController {
     }
 
     const upperProvider = provider.toUpperCase() as OAuthProvider;
-    if (!['GITHUB', 'LINEAR'].includes(upperProvider)) {
+    if (!SUPPORTED_PROVIDERS.includes(upperProvider as typeof SUPPORTED_PROVIDERS[number])) {
       throw new BadRequestException(
-        'Invalid provider. Supported: github, linear',
+        `Invalid provider. Supported: ${SUPPORTED_PROVIDERS.join(', ').toLowerCase()}`,
       );
     }
 
@@ -289,9 +450,9 @@ export class AuthController {
     }
 
     const upperProvider = provider.toUpperCase() as OAuthProvider;
-    if (!['GITHUB', 'LINEAR'].includes(upperProvider)) {
+    if (!SUPPORTED_PROVIDERS.includes(upperProvider as typeof SUPPORTED_PROVIDERS[number])) {
       throw new BadRequestException(
-        'Invalid provider. Supported: github, linear',
+        `Invalid provider. Supported: ${SUPPORTED_PROVIDERS.join(', ').toLowerCase()}`,
       );
     }
 
@@ -352,9 +513,9 @@ export class AuthController {
     }
 
     const upperProvider = provider.toUpperCase() as OAuthProvider;
-    if (!['GITHUB', 'LINEAR'].includes(upperProvider)) {
+    if (!SUPPORTED_PROVIDERS.includes(upperProvider as typeof SUPPORTED_PROVIDERS[number])) {
       throw new BadRequestException(
-        'Invalid provider. Supported: github, linear',
+        `Invalid provider. Supported: ${SUPPORTED_PROVIDERS.join(', ').toLowerCase()}`,
       );
     }
 
@@ -427,9 +588,9 @@ export class AuthController {
     }
 
     const upperProvider = provider.toUpperCase() as OAuthProvider;
-    if (!['GITHUB', 'LINEAR'].includes(upperProvider)) {
+    if (!SUPPORTED_PROVIDERS.includes(upperProvider as typeof SUPPORTED_PROVIDERS[number])) {
       throw new BadRequestException(
-        'Invalid provider. Supported: github, linear',
+        `Invalid provider. Supported: ${SUPPORTED_PROVIDERS.join(', ').toLowerCase()}`,
       );
     }
 

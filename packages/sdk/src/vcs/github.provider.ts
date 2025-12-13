@@ -16,7 +16,7 @@ import {
   createLogger,
 } from '@devflow/common';
 
-import { VCSDriver } from '@/vcs/vcs.interface';
+import { VCSDriver, GitHubIssueContext, GitHubComment } from '@/vcs/vcs.interface';
 
 export class GitHubProvider implements VCSDriver {
   private octokit: Octokit;
@@ -414,6 +414,83 @@ export class GitHubProvider implements VCSDriver {
     } catch (error) {
       return false;
     }
+  }
+
+  /**
+   * Get issue details
+   * Used for extracting context from linked GitHub issues
+   */
+  async getIssue(owner: string, repo: string, issueNumber: number): Promise<GitHubIssueContext> {
+    this.logger.info('Getting issue', { owner, repo, issueNumber });
+
+    const { data } = await this.octokit.issues.get({
+      owner,
+      repo,
+      issue_number: issueNumber,
+    });
+
+    return {
+      id: String(data.id),
+      number: data.number,
+      title: data.title,
+      body: data.body || '',
+      state: data.state,
+      author: data.user?.login || '',
+      labels: data.labels
+        .map((l) => (typeof l === 'string' ? l : l.name))
+        .filter((l): l is string => !!l),
+      assignees: data.assignees?.map((a) => a.login) || [],
+      url: data.html_url,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+      closedAt: data.closed_at || undefined,
+    };
+  }
+
+  /**
+   * Get issue comments
+   */
+  async getIssueComments(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+  ): Promise<GitHubComment[]> {
+    this.logger.info('Getting issue comments', { owner, repo, issueNumber });
+
+    const { data } = await this.octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      per_page: 20, // Limit to 20 most recent
+    });
+
+    return data.map((comment) => ({
+      id: String(comment.id),
+      body: comment.body || '',
+      author: comment.user?.login || '',
+      createdAt: comment.created_at,
+      updatedAt: comment.updated_at,
+    }));
+  }
+
+  /**
+   * Get full issue context for refinement
+   * Combines issue details with comments
+   */
+  async getIssueContext(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+  ): Promise<GitHubIssueContext> {
+    const [issue, comments] = await Promise.all([
+      this.getIssue(owner, repo, issueNumber),
+      this.getIssueComments(owner, repo, issueNumber),
+    ]);
+
+    return {
+      ...issue,
+      comments: comments.slice(0, 10), // Limit to 10 comments
+    };
   }
 
   private mapPRStatus(state: string, mergedAt: string | null): PRStatus {

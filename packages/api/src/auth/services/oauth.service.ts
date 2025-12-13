@@ -48,12 +48,15 @@ export class OAuthService {
       `Initiating Device Flow for ${provider} on project ${projectId}`,
     );
 
-    // Device Flow is only supported for GitHub
-    if (provider !== 'GITHUB') {
+    // Device Flow is only supported for GitHub and GITHUB_ISSUES
+    if (provider !== 'GITHUB' && provider !== 'GITHUB_ISSUES') {
       throw new Error(`Device Flow not supported for ${provider}`);
     }
 
-    const githubConfig = OAUTH_CONSTANTS.GITHUB;
+    // Use the appropriate config (GITHUB_ISSUES uses same endpoints as GITHUB)
+    const githubConfig = provider === 'GITHUB_ISSUES'
+      ? OAUTH_CONSTANTS.GITHUB_ISSUES
+      : OAUTH_CONSTANTS.GITHUB;
 
     try {
       const response = await axios.post(
@@ -99,12 +102,15 @@ export class OAuthService {
   ): Promise<OAuthConnection> {
     this.logger.log(`Polling for tokens: ${provider} on project ${projectId}`);
 
-    // Device Flow is only supported for GitHub
-    if (provider !== 'GITHUB') {
+    // Device Flow is only supported for GitHub and GITHUB_ISSUES
+    if (provider !== 'GITHUB' && provider !== 'GITHUB_ISSUES') {
       throw new Error(`Device Flow polling not supported for ${provider}`);
     }
 
-    const githubConfig = OAUTH_CONSTANTS.GITHUB;
+    // Use the appropriate config (GITHUB_ISSUES uses same endpoints as GITHUB)
+    const githubConfig = provider === 'GITHUB_ISSUES'
+      ? OAUTH_CONSTANTS.GITHUB_ISSUES
+      : OAUTH_CONSTANTS.GITHUB;
     const maxAttempts = 60; // 5 minutes max (60 * 5s)
     const interval = 5000; // 5 seconds
 
@@ -201,7 +207,7 @@ export class OAuthService {
   }
 
   /**
-   * Initiate Authorization Code Flow (for Linear)
+   * Initiate Authorization Code Flow (for Linear, Sentry, Figma)
    * Returns authorization URL for user to visit
    */
   async initiateAuthorizationCodeFlow(
@@ -212,7 +218,8 @@ export class OAuthService {
       `Initiating Authorization Code Flow for ${provider} on project ${projectId}`,
     );
 
-    if (provider !== 'LINEAR') {
+    const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA'];
+    if (!authCodeProviders.includes(provider)) {
       throw new Error(`Authorization Code Flow not supported for ${provider}`);
     }
 
@@ -225,20 +232,35 @@ export class OAuthService {
       );
     }
 
-    const config = OAUTH_CONSTANTS[provider];
+    // Get provider-specific config (only auth code providers have AUTHORIZE_URL)
+    const config = OAUTH_CONSTANTS[provider] as {
+      AUTHORIZE_URL: string;
+      TOKEN_URL: string;
+      USER_API_URL: string;
+      SCOPES: readonly string[];
+      FLOW_TYPE: 'authorization_code';
+    };
 
     // Generate random state for CSRF protection
     const state = Math.random().toString(36).substring(2, 15);
 
-    // Build authorization URL
+    // Build authorization URL with provider-specific parameters
     const params = new URLSearchParams({
       client_id: oauthApp.clientId,
       redirect_uri: oauthApp.redirectUri,
-      scope: oauthApp.scopes.join(','),
       state,
       response_type: 'code',
-      prompt: 'consent', // Force consent screen to ensure fresh authorization
     });
+
+    // Provider-specific scope separator and parameters
+    if (provider === 'LINEAR') {
+      params.set('scope', oauthApp.scopes.join(','));
+      params.set('prompt', 'consent');
+    } else if (provider === 'SENTRY') {
+      params.set('scope', oauthApp.scopes.join(' '));
+    } else if (provider === 'FIGMA') {
+      params.set('scope', oauthApp.scopes.join(','));
+    }
 
     const authorizationUrl = `${config.AUTHORIZE_URL}?${params.toString()}`;
 
@@ -251,7 +273,7 @@ export class OAuthService {
   }
 
   /**
-   * Exchange authorization code for tokens (for Linear)
+   * Exchange authorization code for tokens (for Linear, Sentry, Figma)
    */
   async exchangeAuthorizationCode(
     projectId: string,
@@ -263,7 +285,8 @@ export class OAuthService {
       `Exchanging authorization code for ${provider} on project ${projectId}`,
     );
 
-    if (provider !== 'LINEAR') {
+    const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA'];
+    if (!authCodeProviders.includes(provider)) {
       throw new Error(`Authorization Code Flow not supported for ${provider}`);
     }
 
@@ -397,7 +420,7 @@ export class OAuthService {
     accessToken: string,
   ): Promise<UserInfo> {
     try {
-      if (provider === 'GITHUB') {
+      if (provider === 'GITHUB' || provider === 'GITHUB_ISSUES') {
         const response = await axios.get('https://api.github.com/user', {
           headers: { Authorization: `token ${accessToken}` },
         });
@@ -421,6 +444,22 @@ export class OAuthService {
         return {
           id: response.data.data.viewer.id,
           email: response.data.data.viewer.email || null,
+        };
+      } else if (provider === 'SENTRY') {
+        const response = await axios.get('https://sentry.io/api/0/users/me/', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        return {
+          id: response.data.id,
+          email: response.data.email || null,
+        };
+      } else if (provider === 'FIGMA') {
+        const response = await axios.get('https://api.figma.com/v1/me', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        return {
+          id: response.data.id,
+          email: response.data.email || null,
         };
       }
 
@@ -465,8 +504,9 @@ export class OAuthService {
         refresh_token: refreshToken,
       };
 
-      // Linear Authorization Code Flow requires client_secret for token refresh
-      if (connection.provider === 'LINEAR' && oauthApp.clientSecret) {
+      // Authorization Code Flow providers require client_secret for token refresh
+      const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA'];
+      if (authCodeProviders.includes(connection.provider) && oauthApp.clientSecret) {
         params.client_secret = oauthApp.clientSecret;
       }
 

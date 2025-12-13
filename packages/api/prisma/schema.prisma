@@ -1060,6 +1060,9 @@ model PluginExecution {
 enum OAuthProvider {
   GITHUB
   LINEAR
+  SENTRY
+  FIGMA
+  GITHUB_ISSUES
 }
 
 // OAuth Application Credentials (per project, per provider)

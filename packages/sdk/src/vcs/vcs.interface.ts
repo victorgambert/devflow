@@ -13,6 +13,37 @@ import {
   CommitOptions,
 } from '@devflow/common';
 
+/**
+ * GitHub Issue Comment
+ */
+export interface GitHubComment {
+  id: string;
+  body: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * GitHub Issue Context for refinement
+ * Used to extract context from linked GitHub issues
+ */
+export interface GitHubIssueContext {
+  id: string;
+  number: number;
+  title: string;
+  body: string;
+  state: string;
+  author: string;
+  labels: string[];
+  assignees: string[];
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string;
+  comments?: GitHubComment[];
+}
+
 export interface VCSDriver {
   /**
    * Get repository information
