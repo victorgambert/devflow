@@ -3,7 +3,7 @@
  */
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { createLogger } from '@devflow/common';
+import { createLogger, DEFAULT_WORKFLOW_CONFIG } from '@devflow/common';
 import { parseRepositoryUrl, GitHubProvider, createVCSDriver } from '@devflow/sdk';
 import { PrismaService } from '@/prisma/prisma.service';
 import { TokenRefreshService } from '@/auth/services/token-refresh.service';
@@ -61,14 +61,22 @@ export class ProjectsService {
 
   async create(dto: CreateProjectDto) {
     this.logger.info('Creating project', { name: dto.name });
-    
+
+    // Initialize with DEFAULT_WORKFLOW_CONFIG if no config provided
+    const config = dto.config || DEFAULT_WORKFLOW_CONFIG;
+
+    this.logger.debug('Project config', {
+      hasCustomConfig: !!dto.config,
+      config
+    });
+
     return this.prisma.project.create({
       data: {
         name: dto.name,
         description: dto.description,
         repository: dto.repository,
         workspacePath: dto.workspacePath,
-        config: dto.config,
+        config: config as any, // Cast to any for Prisma JSON type compatibility
       },
     });
   }

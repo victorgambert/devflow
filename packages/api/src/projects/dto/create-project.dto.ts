@@ -17,10 +17,14 @@ export class CreateProjectDto {
   @IsNotEmpty()
   repository: string;
 
-  @ApiProperty({ example: { version: '1.0', project: {}, vcs: {}, commands: {}, ci: {}, code_agent: {}, quality_gates: {}, notifications: {}, files: {} } })
+  @ApiProperty({
+    example: { version: '1.0', project: {}, vcs: {}, commands: {}, ci: {}, code_agent: {}, quality_gates: {}, notifications: {}, files: {} },
+    required: false,
+    description: 'Project configuration (will use DEFAULT_WORKFLOW_CONFIG if not provided)'
+  })
   @IsObject()
-  @IsNotEmpty()
-  config: Record<string, any>;
+  @IsOptional()
+  config?: Record<string, any>;
 
   @ApiProperty({ example: '/path/to/workspace', required: false })
   @IsString()

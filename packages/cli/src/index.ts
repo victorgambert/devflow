@@ -10,6 +10,7 @@ import { projectCommands } from './commands/project';
 import { workflowCommands } from './commands/workflow';
 import { configCommands } from './commands/config';
 import { oauthCommands } from './commands/oauth';
+import { linearConfigCommands } from './commands/linear-config';
 
 const program = new Command();
 
@@ -79,6 +80,23 @@ program
   .command('config:show')
   .description('Show current configuration')
   .action(configCommands.show);
+
+// Linear Config commands
+program
+  .command('config:linear')
+  .description('Configure Linear workflow statuses and features')
+  .option('-p, --project <id>', 'Project ID')
+  .action((options) => linearConfigCommands.configure(options));
+
+program
+  .command('config:linear:show [projectId]')
+  .description('Show Linear configuration for a project')
+  .action((projectId) => linearConfigCommands.show(projectId));
+
+program
+  .command('config:linear:reset [projectId]')
+  .description('Reset Linear configuration to defaults')
+  .action((projectId) => linearConfigCommands.reset(projectId));
 
 // OAuth commands
 program
