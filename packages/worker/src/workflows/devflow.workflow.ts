@@ -1,511 +1,132 @@
 /**
- * Main DevFlow Orchestration Workflow - Phase 3 with Testing ↔ Fix Loop
+ * Main DevFlow Orchestration Workflow - Three-Phase Agile Router
+ *
+ * Routes to appropriate sub-workflow based on Linear task status:
+ * - To Refinement → Refinement Workflow (Phase 1)
+ * - To User Story / Refinement Ready → User Story Workflow (Phase 2)
+ * - To Plan / UserStory Ready → Technical Plan Workflow (Phase 3)
  */
 
-import { proxyActivities, sleep, ActivityFailure, ApplicationFailure } from '@temporalio/workflow';
-import type { WorkflowInput, WorkflowResult, WorkflowStage } from '@devflow/common';
+import { executeChild, proxyActivities, ApplicationFailure } from '@temporalio/workflow';
+import type { WorkflowInput, WorkflowResult } from '@devflow/common';
 import { DEFAULT_WORKFLOW_CONFIG } from '@devflow/common';
+
+// Import sub-workflows
+import { refinementWorkflow } from './phases/refinement.workflow';
+import { userStoryWorkflow } from './phases/user-story.workflow';
+import { technicalPlanWorkflow } from './phases/technical-plan.workflow';
 
 // Import activity types
 import type * as activities from '@/activities';
 
-// Configure activity proxies with advanced retry policies
-const {
-  // Linear activities
-  syncLinearTask,
-  updateLinearTask,
-  appendSpecToLinearIssue,
-  appendWarningToLinearIssue,
-  generateSpecification,
-  generateCode,
-  createBranch,
-  commitFiles,
-  createPullRequest,
-  waitForCI,
-  sendNotification,
-  mergePullRequest,
-  // Phase 3: New QA activities
-  generateTests,
-  runTests,
-  analyzeTestFailures,
-  waitForCI: waitForCIWithRetry,
-  // RAG activities
-  checkIndexStatus,
-  retrieveContext,
-  indexRepository,
-} = proxyActivities<typeof activities>({
-  startToCloseTimeout: '30 minutes',
+// Simple activity proxy for syncing Linear tasks
+const { syncLinearTask } = proxyActivities<typeof activities>({
+  startToCloseTimeout: '5 minutes',
   retry: {
     maximumAttempts: 3,
-    initialInterval: '1s',
-    backoffCoefficient: 2,
-    maximumInterval: '1 minute',
-    nonRetryableErrorTypes: ['ValidationError', 'AuthenticationError'],
   },
 });
 
 /**
- * Main DevFlow workflow with full Testing ↔ Fix loop (Phase 3)
+ * Main DevFlow Workflow Router
+ * Routes to appropriate sub-workflow based on Linear task status
  */
 export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowResult> {
-  // Extract config with fallback to defaults
   const config = input.config || DEFAULT_WORKFLOW_CONFIG;
-  const LINEAR_STATUSES = {
-    SPEC_IN_PROGRESS: config.linear.statuses.specInProgress,
-    SPEC_READY: config.linear.statuses.specReady,
-    SPEC_FAILED: config.linear.statuses.specFailed,
-    SPECIFICATION: config.linear.statuses.specification,
-    IN_REVIEW: config.linear.statuses.inReview,
-    DONE: config.linear.statuses.done,
-    BLOCKED: config.linear.statuses.blocked,
-    TRIGGER_STATUS: config.linear.statuses.triggerStatus,
-    NEXT_STATUS: config.linear.statuses.nextStatus,
-  };
-
-  let currentStage: WorkflowStage = 'linear_sync' as WorkflowStage;
-  let prNumber: number | undefined;
-  let branchName: string | undefined;
-  const maxFixAttempts = 3;
-  let fixAttempts = 0;
-  let testFixAttempts = 0;
+  const LINEAR_STATUSES = config.linear.statuses;
 
   try {
-    // ============================================
-    // Stage 1: Sync task from Linear
-    // ============================================
-    currentStage = 'linear_sync' as WorkflowStage;
-    const task = await syncLinearTask({ taskId: input.taskId, projectId: input.projectId });
-
-    await sendNotification({
+    // Sync task from Linear to get current status
+    const task = await syncLinearTask({
+      taskId: input.taskId,
       projectId: input.projectId,
-      event: 'workflow_started',
-      data: { taskId: task.id, title: task.title },
     });
 
-    // Update Linear status to "Spec In Progress"
-    await updateLinearTask({
-      projectId: input.projectId,
-      linearId: task.linearId,
-      updates: { status: LINEAR_STATUSES.SPEC_IN_PROGRESS },
-    });
-
-    // ============================================
-    // Stage 1.5: RAG Context Retrieval
-    // ============================================
-    // Check if codebase index needs updating
-    const indexStatus = await checkIndexStatus({ projectId: input.projectId });
-
-    if (indexStatus.needsIndexing) {
-      // Trigger background indexing (non-blocking)
-      // In production, this would be done via webhook, but we can trigger it here too
-      await sendNotification({
-        projectId: input.projectId,
-        event: 'indexing_needed',
-        data: { reason: indexStatus.reason },
-      });
-    }
-
-    // Retrieve relevant code context using RAG
-    let ragContext;
-    try {
-      ragContext = await retrieveContext({
-        projectId: input.projectId,
-        query: `${task.title}\n${task.description}`,
-        topK: 10,
-        useReranking: true,
-      });
-
-      // Fail if no context was retrieved
-      if (!ragContext || ragContext.chunks.length === 0) {
-        throw new ApplicationFailure(
-          'No relevant code context found for this task. The codebase may not be indexed yet.',
-          'NoRAGContext',
-          false,
-        );
-      }
-
-      await sendNotification({
-        projectId: input.projectId,
-        event: 'context_retrieved',
-        data: { chunks: ragContext.chunks.length, retrievalTime: ragContext.retrievalTimeMs },
-      });
-    } catch (error) {
-      // RAG retrieval failed - fail the workflow
-      await sendNotification({
-        projectId: input.projectId,
-        event: 'context_retrieval_failed',
-        data: { error: error instanceof Error ? error.message : String(error) },
-      });
-
-      // Re-throw to fail the workflow
-      throw error;
-    }
-
-    // ============================================
-    // Stage 2: Generate specification WITH RAG
-    // ============================================
-    currentStage = 'spec_generation' as WorkflowStage;
-    const spec = await generateSpecification({
-      task,
-      projectId: input.projectId,
-      ragContext: ragContext,
-    });
-
-    // Update Linear status to "Spec Ready"
-    await updateLinearTask({
-      projectId: input.projectId,
-      linearId: task.linearId,
-      updates: {
-        status: LINEAR_STATUSES.SPEC_READY,
-      },
-    });
-
-    // Append spec to Linear issue description as markdown with codebase context and multi-LLM results
-    await appendSpecToLinearIssue({
-      projectId: input.projectId,
-      linearId: task.linearId,
-      spec: spec,
-      codebaseContext: spec.contextUsed,
-      multiLLM: spec.multiLLM,
-    });
-
-    // Append warning comment about auto-generated specs
-    await appendWarningToLinearIssue({
-      projectId: input.projectId,
-      linearId: task.linearId,
-    });
-
-    await sendNotification({
-      projectId: input.projectId,
-      event: 'spec_generated',
-      data: { taskId: task.id, spec },
-    });
-
-    // ============================================
-    // STOP HERE: Spec generation completed
-    // Code generation should be triggered manually
-    // ============================================
-    await sendNotification({
-      projectId: input.projectId,
-      event: 'workflow_completed',
-      data: {
-        taskId: task.id,
-        title: task.title,
-        stage: 'spec_generation',
-        message: 'Specification generated successfully. Code generation must be triggered manually.',
-      },
-    });
-
-    return {
-      success: true,
-      stage: 'spec_generation' as WorkflowStage,
-      data: {
-        task,
-        spec,
-        completed: true,
-        message: 'Specification generated successfully. Code generation must be triggered manually.',
-      },
-      timestamp: new Date(),
-    };
-
-    // ============================================
-    // Stage 3: Generate code
-    // ============================================
-    currentStage = 'code_generation' as WorkflowStage;
-    const codeGeneration = await generateCode({ spec, task, projectId: input.projectId });
-    branchName = codeGeneration.branchName;
-
-    // ============================================
-    // Phase 3: Generate tests from acceptance criteria
-    // ============================================
-    const testsGeneration = await generateTests({
-      projectId: input.projectId,
-      taskId: task.id,
-      acceptanceCriteria: task.acceptanceCriteria || [],
-      implementationFiles: codeGeneration.files.map((f: any) => ({
-        path: f.path,
-        content: f.content,
-      })),
-      testTypes: ['unit', 'integration'],
-    });
-
-    // ============================================
-    // Stage 4: Create branch
-    // ============================================
-    currentStage = 'pr_creation' as WorkflowStage;
-    await createBranch({ projectId: input.projectId, branchName, baseBranch: 'main' });
-
-    // ============================================
-    // Stage 5: Commit implementation + tests
-    // ============================================
-    const allFiles = [
-      ...codeGeneration.files,
-      ...testsGeneration.tests.map((t: any) => ({
-        path: t.path,
-        content: t.content,
-        action: 'create',
-      })),
-    ];
-
-    await commitFiles({
-      projectId: input.projectId,
-      branchName,
-      files: allFiles,
-      message: `${codeGeneration.commitMessage}\n\nGenerated ${testsGeneration.summary.totalTests} tests`,
-    });
-
-    // ============================================
-    // Stage 6: Create PR
-    // ============================================
-    const pr = await createPullRequest({
-      projectId: input.projectId,
-      branchName,
-      title: task.title,
-      description: `${codeGeneration.prDescription}\n\n## Tests Generated\n${testsGeneration.summary.totalTests} tests (${Object.entries(testsGeneration.summary.byType).map(([type, count]) => `${count} ${type}`).join(', ')})`,
-    });
-    prNumber = pr.number;
-
-    await sendNotification({
-      projectId: input.projectId,
-      event: 'pr_created',
-      data: { taskId: task.id, prUrl: pr.url, prNumber: pr.number },
-    });
-
-    // Update Linear with PR link
-    await updateLinearTask({
-      projectId: input.projectId,
-      linearId: task.linearId,
-      updates: { status: LINEAR_STATUSES.IN_REVIEW },
-    });
-
-    // ============================================
-    // Stage 7: Wait for CI + Testing Loop
-    // ============================================
-    currentStage = 'ci_execution' as WorkflowStage;
-    
-    // Main CI/Testing loop with auto-fix
-    while (fixAttempts <= maxFixAttempts) {
-      const ciResult = await waitForCIWithRetry({ projectId: input.projectId, prNumber });
-
-      if (ciResult.success) {
-        // CI passed!
-        await sendNotification({
-          projectId: input.projectId,
-          event: 'ci_passed',
-          data: { taskId: task.id, prNumber, duration: ciResult.duration },
-        });
-        break;
-      }
-
-      // CI failed
-      await sendNotification({
-        projectId: input.projectId,
-        event: 'ci_failed',
-        data: { taskId: task.id, prNumber, logs: ciResult.logs, attempt: fixAttempts + 1 },
-      });
-
-      // Check if we should attempt a fix
-      if (fixAttempts >= maxFixAttempts) {
-        throw new ApplicationFailure(
-          `CI failed after ${maxFixAttempts} fix attempts. Logs: ${ciResult.logs}`,
-          'CIFailure',
-          false,
-        );
-      }
-
-      // ============================================
-      // Phase 3: Enhanced Testing ↔ Fix Loop
-      // ============================================
-      currentStage = 'qa_testing' as WorkflowStage;
-      
-      // Run tests locally to get detailed failures
-      const testResult = await runTests({
-        projectId: input.projectId,
-        workspacePath: '/tmp/workspace',  // TODO: Get from config
-        testType: 'all',
-      });
-
-      if (!testResult.success && testResult.failures && testResult.failures.length > 0) {
-        // Tests failed - analyze and fix
-        currentStage = 'fix_generation' as WorkflowStage;
-
-        const failureAnalysis = await analyzeTestFailures({
-          projectId: input.projectId,
-          failures: testResult.failures,
-          implementationFiles: allFiles.filter((f: any) => !f.path.includes('test') && !f.path.includes('spec')),
-          testFiles: testsGeneration.tests.map((t: any) => ({ path: t.path, content: t.content })),
-          previousAttempts: testFixAttempts,
-        });
-
-        // Apply fixes based on strategy
-        const fixFiles: any[] = [];
-
-        if (failureAnalysis.fixStrategy === 'fix_implementation' || failureAnalysis.fixStrategy === 'both') {
-          fixFiles.push(...(failureAnalysis.implementationFixes || []));
-        }
-
-        if (failureAnalysis.fixStrategy === 'fix_tests' || failureAnalysis.fixStrategy === 'both') {
-          fixFiles.push(...(failureAnalysis.testFixes || []));
-        }
-
-        // Commit fixes
-        if (fixFiles.length > 0) {
-          await commitFiles({
+    // Route to appropriate sub-workflow based on status
+    // Phase 1: Refinement
+    if (task.status === LINEAR_STATUSES.toRefinement) {
+      const result = await executeChild(refinementWorkflow, {
+        workflowId: `refinement-${input.taskId}-${Date.now()}`,
+        args: [
+          {
+            taskId: input.taskId,
             projectId: input.projectId,
-            branchName,
-            files: fixFiles,
-            message: `fix: ${failureAnalysis.fixStrategy} - ${failureAnalysis.analysis.substring(0, 50)}...`,
-          });
-
-          testFixAttempts++;
-        }
-      }
-
-      fixAttempts++;
-
-      // Wait a bit before checking CI again
-      await sleep('30s');
-    }
-
-    // ============================================
-    // Stage 8: Final validation
-    // ============================================
-    currentStage = 'qa_testing' as WorkflowStage;
-    const finalTestResult = await runTests({
-      projectId: input.projectId,
-      workspacePath: '/tmp/workspace',
-      testType: 'all',
-    });
-
-    if (!finalTestResult.success) {
-      await sendNotification({
-        projectId: input.projectId,
-        event: 'tests_failed',
-        data: { taskId: task.id, failures: finalTestResult.failures },
+            config,
+          },
+        ],
       });
 
-      throw new ApplicationFailure(
-        `Final tests failed with ${finalTestResult.failures?.length || 0} failures`,
-        'TestFailure',
-        false,
-      );
-    }
-
-    await sendNotification({
-      projectId: input.projectId,
-      event: 'qa_completed',
-      data: { 
-        taskId: task.id, 
-        prNumber,
-        coverage: finalTestResult.coverage,
-      },
-    });
-
-    // ============================================
-    // Stage 9: Merge PR
-    // ============================================
-    currentStage = 'merge' as WorkflowStage;
-    await mergePullRequest({ projectId: input.projectId, prNumber });
-
-    // Update Linear to "Done"
-    await updateLinearTask({
-      projectId: input.projectId,
-      linearId: task.linearId,
-      updates: { status: LINEAR_STATUSES.DONE },
-    });
-
-    // ============================================
-    // Stage 10: Send final notification
-    // ============================================
-    currentStage = 'notification' as WorkflowStage;
-    await sendNotification({
-      projectId: input.projectId,
-      event: 'workflow_completed',
-      data: {
-        taskId: task.id,
-        title: task.title,
-        prUrl: pr.url,
-        prNumber,
-        branchName,
-        fixAttempts,
-        testFixAttempts,
-        testsGenerated: testsGeneration.summary.totalTests,
-        coverage: finalTestResult.coverage,
-      },
-    });
-
-    return {
-      success: true,
-      stage: 'notification' as WorkflowStage,
-      data: {
-        task,
-        pr,
-        branchName,
-        fixAttempts,
-        testFixAttempts,
-        testsGenerated: testsGeneration.summary.totalTests,
-        completed: true,
-      },
-      timestamp: new Date(),
-    };
-  } catch (err: unknown) {
-    // Enhanced error handling
-    let errorMessage = 'Unknown error';
-    let errorType = 'UnknownError';
-    let errorDetails: any = {};
-
-    if (err instanceof ActivityFailure) {
-      errorMessage = err.message;
-      errorType = err.cause?.message || 'ActivityError';
-      errorDetails = {
-        activityType: err.activityType,
-        activityId: err.activityId,
-        retryState: typeof err.retryState === 'string' ? err.retryState : err.retryState,
+      return {
+        success: true,
+        stage: 'refinement' as any,
+        data: result,
+        timestamp: new Date(),
       };
-    } else if (err instanceof ApplicationFailure) {
-      errorMessage = err.message;
-      errorType = err.type || 'ApplicationError';
-      errorDetails = err.details;
-    } else if (err instanceof Error) {
-      errorMessage = err.message;
-      errorDetails = { stack: err.stack };
     }
 
-    // Send failure notification
-    await sendNotification({
-      projectId: input.projectId,
-      event: 'workflow_failed',
-      data: {
-        taskId: input.taskId,
-        stage: currentStage,
-        error: errorMessage,
-        errorType,
-        errorDetails,
-        prNumber,
-        branchName,
-        fixAttempts,
-        testFixAttempts,
-      },
+    // Phase 2: User Story
+    if (
+      task.status === LINEAR_STATUSES.toUserStory ||
+      task.status === LINEAR_STATUSES.refinementReady
+    ) {
+      const result = await executeChild(userStoryWorkflow, {
+        workflowId: `user-story-${input.taskId}-${Date.now()}`,
+        args: [
+          {
+            taskId: input.taskId,
+            projectId: input.projectId,
+            config,
+          },
+        ],
+      });
+
+      return {
+        success: true,
+        stage: 'user_story' as any,
+        data: result,
+        timestamp: new Date(),
+      };
+    }
+
+    // Phase 3: Technical Plan
+    if (task.status === LINEAR_STATUSES.toPlan || task.status === LINEAR_STATUSES.userStoryReady) {
+      const result = await executeChild(technicalPlanWorkflow, {
+        workflowId: `technical-plan-${input.taskId}-${Date.now()}`,
+        args: [
+          {
+            taskId: input.taskId,
+            projectId: input.projectId,
+            config,
+          },
+        ],
+      });
+
+      return {
+        success: true,
+        stage: 'technical_plan' as any,
+        data: result,
+        timestamp: new Date(),
+      };
+    }
+
+    // No matching workflow trigger found
+    throw ApplicationFailure.create({
+      message:
+        `Status "${task.status}" is not a valid workflow trigger for the three-phase Agile system. ` +
+        `Expected one of: ` +
+        `"${LINEAR_STATUSES.toRefinement}", ` +
+        `"${LINEAR_STATUSES.toUserStory}", ` +
+        `"${LINEAR_STATUSES.refinementReady}", ` +
+        `"${LINEAR_STATUSES.toPlan}", ` +
+        `"${LINEAR_STATUSES.userStoryReady}"`,
+      type: 'InvalidWorkflowTrigger',
     });
-
-    // Update Linear to "Spec Failed"
-    if (input.taskId) {
-      try {
-        await updateLinearTask({
-          projectId: input.projectId,
-          linearId: input.taskId,
-          updates: { status: LINEAR_STATUSES.SPEC_FAILED },
-        });
-      } catch {
-        // Ignore errors updating Linear on failure
-      }
-    }
-
+  } catch (error) {
     return {
       success: false,
-      stage: currentStage,
-      error: errorMessage,
-      data: { errorType, errorDetails, prNumber, branchName, fixAttempts, testFixAttempts },
+      stage: 'routing' as any,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      data: { error },
       timestamp: new Date(),
     };
   }

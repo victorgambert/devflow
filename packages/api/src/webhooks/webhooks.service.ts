@@ -28,21 +28,28 @@ export class WebhooksService {
     if (payload?.action === 'update' && payload?.type === 'Issue') {
       const issue = payload.data;
       const stateName = issue?.state?.name;
-      const triggerStatus = process.env.LINEAR_TRIGGER_STATUS || 'To Spec';
+
+      // Three-Phase Agile Workflow triggers
+      const triggerStatuses = [
+        process.env.LINEAR_STATUS_TO_REFINEMENT || 'To Refinement',
+        process.env.LINEAR_STATUS_TO_USER_STORY || 'Refinement Ready',
+        process.env.LINEAR_STATUS_TO_PLAN || 'UserStory Ready',
+      ];
 
       this.logger.info('Issue updated', {
         issueId: issue?.id,
         identifier: issue?.identifier,
         stateName,
-        triggerStatus,
-        linearProjectId: issue?.projectId
+        triggerStatuses,
+        linearProjectId: issue?.projectId,
       });
 
-      // Check if the issue moved to the trigger status
-      if (stateName === triggerStatus) {
+      // Check if the issue moved to any of the trigger statuses
+      if (triggerStatuses.includes(stateName)) {
         this.logger.info('Issue moved to trigger status, starting workflow', {
           issueId: issue?.id,
-          identifier: issue?.identifier
+          identifier: issue?.identifier,
+          triggerStatus: stateName,
         });
 
         try {
@@ -52,10 +59,10 @@ export class WebhooksService {
 
           this.logger.info('Using DevFlow projectId', {
             devflowProjectId: projectId,
-            linearProjectId: issue.projectId
+            linearProjectId: issue.projectId,
           });
 
-          // Start the DevFlow workflow
+          // Start the DevFlow workflow (router will determine which phase)
           const result = await this.workflowsService.start({
             taskId: issue.id,
             projectId,
@@ -66,7 +73,8 @@ export class WebhooksService {
           this.logger.info('Workflow started successfully', {
             workflowId: result.workflowId,
             issueId: issue.id,
-            projectId
+            projectId,
+            triggerStatus: stateName,
           });
 
           return {
@@ -74,7 +82,8 @@ export class WebhooksService {
             action: payload?.action,
             type: payload?.type,
             workflowStarted: true,
-            workflowId: result.workflowId
+            workflowId: result.workflowId,
+            triggerStatus: stateName,
           };
         } catch (error) {
           this.logger.error('Failed to start workflow', error as Error, { issueId: issue?.id });

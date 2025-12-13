@@ -4,7 +4,19 @@
  */
 
 import { createLogger } from '@devflow/common';
-import { createLinearClient, formatSpecAsMarkdown, formatWarningMessage } from '@devflow/sdk';
+import type {
+  RefinementOutput,
+  UserStoryGenerationOutput,
+  TechnicalPlanGenerationOutput,
+} from '@devflow/common/types/agent.types';
+import {
+  createLinearClient,
+  formatSpecAsMarkdown,
+  formatWarningMessage,
+  formatRefinementAsMarkdown,
+  formatUserStoryAsMarkdown,
+  formatTechnicalPlanAsMarkdown,
+} from '@devflow/sdk';
 import { oauthResolver } from '@/services/oauth-context';
 
 const logger = createLogger('LinearActivities');
@@ -299,6 +311,173 @@ export async function appendWarningToLinearIssue(input: {
     logger.error('Failed to add warning to Linear', error as Error, { linearId: input.linearId });
     // Non-critical operation - don't throw
     logger.warn('Continuing despite warning comment failure');
+  }
+}
+
+/**
+ * Append refinement content to Linear issue description
+ * Phase 1 of Three-Phase Agile Workflow
+ */
+export async function appendRefinementToLinearIssue(input: {
+  projectId: string;
+  linearId: string;
+  refinement: RefinementOutput;
+  multiLLM?: {
+    models: Array<{
+      model: string;
+      score: number;
+    }>;
+    bestModel: string;
+    detailedExplanation: string;
+  };
+}): Promise<void> {
+  logger.info('Appending refinement to Linear issue', { linearId: input.linearId });
+
+  // Resolve Linear API key via OAuth
+  const apiKey = await resolveLinearApiKey(input.projectId);
+
+  try {
+    const client = createLinearClient(apiKey);
+
+    // Format refinement as markdown
+    let markdown = formatRefinementAsMarkdown(input.refinement);
+
+    // Add multi-LLM comparison section if used
+    if (input.multiLLM) {
+      markdown += '\n\n---\n\n';
+      markdown += '## 🤖 Multi-LLM Analysis\n\n';
+      markdown += input.multiLLM.detailedExplanation;
+    }
+
+    // Append to issue description
+    await client.appendToDescription(input.linearId, markdown);
+
+    logger.info('Refinement appended to Linear issue', { linearId: input.linearId });
+  } catch (error) {
+    logger.error('Failed to append refinement to Linear', error as Error, { linearId: input.linearId });
+    throw error;
+  }
+}
+
+/**
+ * Append user story content to Linear issue description
+ * Phase 2 of Three-Phase Agile Workflow
+ */
+export async function appendUserStoryToLinearIssue(input: {
+  projectId: string;
+  linearId: string;
+  userStory: UserStoryGenerationOutput;
+  multiLLM?: {
+    models: Array<{
+      model: string;
+      score: number;
+    }>;
+    bestModel: string;
+    detailedExplanation: string;
+  };
+}): Promise<void> {
+  logger.info('Appending user story to Linear issue', { linearId: input.linearId });
+
+  // Resolve Linear API key via OAuth
+  const apiKey = await resolveLinearApiKey(input.projectId);
+
+  try {
+    const client = createLinearClient(apiKey);
+
+    // Format user story as markdown
+    let markdown = formatUserStoryAsMarkdown(input.userStory);
+
+    // Add multi-LLM comparison section if used
+    if (input.multiLLM) {
+      markdown += '\n\n---\n\n';
+      markdown += '## 🤖 Multi-LLM Analysis\n\n';
+      markdown += input.multiLLM.detailedExplanation;
+    }
+
+    // Append to issue description
+    await client.appendToDescription(input.linearId, markdown);
+
+    logger.info('User story appended to Linear issue', { linearId: input.linearId });
+  } catch (error) {
+    logger.error('Failed to append user story to Linear', error as Error, { linearId: input.linearId });
+    throw error;
+  }
+}
+
+/**
+ * Append technical plan content to Linear issue description
+ * Phase 3 of Three-Phase Agile Workflow
+ */
+export async function appendTechnicalPlanToLinearIssue(input: {
+  projectId: string;
+  linearId: string;
+  plan: TechnicalPlanGenerationOutput;
+  contextUsed?: {
+    language: string;
+    framework?: string;
+    dependencies: number;
+    conventions: number;
+    filesAnalyzed: string[];
+    usingRAG: boolean;
+  };
+  multiLLM?: {
+    models: Array<{
+      model: string;
+      score: number;
+    }>;
+    bestModel: string;
+    detailedExplanation: string;
+  };
+}): Promise<void> {
+  logger.info('Appending technical plan to Linear issue', { linearId: input.linearId });
+
+  // Resolve Linear API key via OAuth
+  const apiKey = await resolveLinearApiKey(input.projectId);
+
+  try {
+    const client = createLinearClient(apiKey);
+
+    // Format technical plan as markdown
+    let markdown = formatTechnicalPlanAsMarkdown(input.plan);
+
+    // Add codebase context section if provided
+    if (input.contextUsed) {
+      markdown += '\n\n---\n\n';
+      markdown += '## 🔍 Codebase Context\n\n';
+      markdown += `**Language:** ${input.contextUsed.language}\n`;
+
+      if (input.contextUsed.framework) {
+        markdown += `**Framework:** ${input.contextUsed.framework}\n`;
+      }
+
+      markdown += `**Dependencies analyzed:** ${input.contextUsed.dependencies}\n`;
+      markdown += `**Conventions found:** ${input.contextUsed.conventions}\n`;
+      markdown += `**Using RAG:** ${input.contextUsed.usingRAG ? 'Yes' : 'No (legacy analysis)'}\n`;
+
+      if (input.contextUsed.filesAnalyzed && input.contextUsed.filesAnalyzed.length > 0) {
+        markdown += '\n**Referenced files:**\n';
+        input.contextUsed.filesAnalyzed.forEach((file) => {
+          markdown += `- \`${file}\`\n`;
+        });
+      }
+
+      markdown += '\n> This plan was generated with codebase context to follow existing patterns.\n';
+    }
+
+    // Add multi-LLM comparison section if used
+    if (input.multiLLM) {
+      markdown += '\n\n---\n\n';
+      markdown += '## 🤖 Multi-LLM Analysis\n\n';
+      markdown += input.multiLLM.detailedExplanation;
+    }
+
+    // Append to issue description
+    await client.appendToDescription(input.linearId, markdown);
+
+    logger.info('Technical plan appended to Linear issue', { linearId: input.linearId });
+  } catch (error) {
+    logger.error('Failed to append technical plan to Linear', error as Error, { linearId: input.linearId });
+    throw error;
   }
 }
 

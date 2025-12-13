@@ -94,3 +94,61 @@ export interface FixGenerationOutput {
   analysis: string;
   commitMessage: string;
 }
+
+/**
+ * Three-Phase Agile Workflow Types
+ */
+
+// Phase 1: Refinement Output
+export interface RefinementOutput {
+  taskType: 'feature' | 'bug' | 'enhancement' | 'chore'; // Type détecté
+  businessContext: string; // Contexte métier clarifié
+  objectives: string[]; // Objectifs business identifiés
+  questionsForPO?: string[]; // Questions pour le Product Owner
+  suggestedSplit?: {
+    // Découpage suggéré si story trop grosse
+    reason: string;
+    proposedStories: Array<{ title: string; description: string }>;
+  };
+  preliminaryAcceptanceCriteria: string[]; // Critères préliminaires
+  complexityEstimate: 'XS' | 'S' | 'M' | 'L' | 'XL'; // T-shirt sizing
+}
+
+// Phase 2: User Story Output
+export interface UserStoryGenerationOutput {
+  userStory: {
+    actor: string; // "As a [user type]"
+    goal: string; // "I want [goal]"
+    benefit: string; // "So that [benefit]"
+  };
+  acceptanceCriteria: string[];
+  definitionOfDone: string[];
+  businessValue: string;
+  storyPoints: number; // Story points (Fibonacci: 1,2,3,5,8,13,21)
+}
+
+// Phase 3: Technical Plan Input
+export interface TechnicalPlanGenerationInput {
+  task: { title: string; description: string; priority: string };
+  userStory: UserStoryGenerationOutput;
+  project: {
+    language: string;
+    framework?: string;
+    dependencies?: string[];
+    conventions?: string[];
+    patterns?: string[];
+  };
+  codebaseContext?: string;
+}
+
+// Phase 3: Technical Plan Output
+export interface TechnicalPlanGenerationOutput {
+  architecture: string[];
+  implementationSteps: string[];
+  testingStrategy: string;
+  risks: string[];
+  estimatedTime: number;
+  dependencies?: string[];
+  technicalDecisions?: string[];
+  filesAffected?: string[]; // Files that will be modified
+}

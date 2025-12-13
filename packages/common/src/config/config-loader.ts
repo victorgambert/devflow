@@ -20,15 +20,27 @@ const AppConfigSchema = z.object({
 
 const LinearSystemConfigSchema = z.object({
   statuses: z.object({
-    specInProgress: z.string().default('Spec In Progress'),
-    specReady: z.string().default('Spec Ready'),
-    specFailed: z.string().default('Spec Failed'),
-    specification: z.string().default('Specification'),
+    // Generic
     inReview: z.string().default('In Review'),
     done: z.string().default('Done'),
     blocked: z.string().default('Blocked'),
-    triggerStatus: z.string().default('To Spec'),
-    nextStatus: z.string().default('Spec Ready'),
+    // Backlog
+    backlog: z.string().default('Backlog'),
+    // Refinement
+    toRefinement: z.string().default('To Refinement'),
+    refinementInProgress: z.string().default('Refinement In Progress'),
+    refinementReady: z.string().default('Refinement Ready'),
+    refinementFailed: z.string().default('Refinement Failed'),
+    // User Story
+    toUserStory: z.string().default('Refinement Ready'),
+    userStoryInProgress: z.string().default('UserStory In Progress'),
+    userStoryReady: z.string().default('UserStory Ready'),
+    userStoryFailed: z.string().default('UserStory Failed'),
+    // Technical Plan
+    toPlan: z.string().default('UserStory Ready'),
+    planInProgress: z.string().default('Plan In Progress'),
+    planReady: z.string().default('Plan Ready'),
+    planFailed: z.string().default('Plan Failed'),
   }),
   webhookSecret: z.string().optional(),
   specWarningMessage: z.string().optional(),
@@ -107,15 +119,27 @@ export function loadConfig(): DevFlowConfig {
 
   const linearConfig = LinearSystemConfigSchema.parse({
     statuses: {
-      specInProgress: process.env.LINEAR_STATUS_SPEC_IN_PROGRESS || 'Spec In Progress',
-      specReady: process.env.LINEAR_STATUS_SPEC_READY || 'Spec Ready',
-      specFailed: process.env.LINEAR_STATUS_SPEC_FAILED || 'Spec Failed',
-      specification: process.env.LINEAR_STATUS_SPECIFICATION || 'Specification',
+      // Generic
       inReview: process.env.LINEAR_STATUS_IN_REVIEW || 'In Review',
       done: process.env.LINEAR_STATUS_DONE || 'Done',
       blocked: process.env.LINEAR_STATUS_BLOCKED || 'Blocked',
-      triggerStatus: process.env.LINEAR_TRIGGER_STATUS || 'To Spec',
-      nextStatus: process.env.LINEAR_NEXT_STATUS || 'Spec Ready',
+      // Backlog
+      backlog: process.env.LINEAR_STATUS_BACKLOG || 'Backlog',
+      // Refinement
+      toRefinement: process.env.LINEAR_STATUS_TO_REFINEMENT || 'To Refinement',
+      refinementInProgress: process.env.LINEAR_STATUS_REFINEMENT_IN_PROGRESS || 'Refinement In Progress',
+      refinementReady: process.env.LINEAR_STATUS_REFINEMENT_READY || 'Refinement Ready',
+      refinementFailed: process.env.LINEAR_STATUS_REFINEMENT_FAILED || 'Refinement Failed',
+      // User Story
+      toUserStory: process.env.LINEAR_STATUS_TO_USER_STORY || 'Refinement Ready',
+      userStoryInProgress: process.env.LINEAR_STATUS_USER_STORY_IN_PROGRESS || 'UserStory In Progress',
+      userStoryReady: process.env.LINEAR_STATUS_USER_STORY_READY || 'UserStory Ready',
+      userStoryFailed: process.env.LINEAR_STATUS_USER_STORY_FAILED || 'UserStory Failed',
+      // Technical Plan
+      toPlan: process.env.LINEAR_STATUS_TO_PLAN || 'UserStory Ready',
+      planInProgress: process.env.LINEAR_STATUS_PLAN_IN_PROGRESS || 'Plan In Progress',
+      planReady: process.env.LINEAR_STATUS_PLAN_READY || 'Plan Ready',
+      planFailed: process.env.LINEAR_STATUS_PLAN_FAILED || 'Plan Failed',
     },
     webhookSecret: process.env.LINEAR_WEBHOOK_SECRET,
     specWarningMessage: process.env.LINEAR_SPEC_WARNING_MESSAGE,

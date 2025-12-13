@@ -1,8 +1,8 @@
 # CLAUDE.md - DevFlow
 
-**Version:** 1.14.0
-**Mise à jour:** 8 décembre 2025
-**Statut:** Production Ready
+**Version:** 2.0.0
+**Mise à jour:** 13 décembre 2025
+**Statut:** Three-Phase Agile System - Production Ready
 
 ## Rappel agents (Claude + Cursor)
 - Finir chaque tâche par une étape Documentation (code, infra, CI, scripts, data, tests).
@@ -14,16 +14,53 @@
 ## Vue d'ensemble
 DevFlow est un orchestrateur DevOps universel qui transforme automatiquement les tâches Linear en code déployé.
 
-### Workflow principal
-1. Créer une tâche dans Linear avec description
-2. Analyse de la codebase via GitHub API
-3. Génération de la spécification technique
-4. Génération de code (frontend + backend)
-5. Génération des tests (unitaires + E2E)
-6. Création d'une Pull Request
-7. Exécution CI/CD + auto-fix en boucle si échec
-8. Déploiement d'une preview app
-9. Merge automatique (si configuré)
+### Three-Phase Agile Workflow (v2.0)
+DevFlow implémente un workflow Agile en trois phases distinctes pour une meilleure séparation des responsabilités:
+
+#### Phase 1: Refinement (Affinage du backlog)
+**Status:** `To Refinement` → `Refinement Ready` / `Refinement Failed`
+
+1. Détecter le type de tâche (feature, bug, enhancement, chore)
+2. Clarifier le contexte métier et les objectifs
+3. Identifier les ambiguïtés et questions pour le Product Owner
+4. Proposer un découpage si la story est trop grosse
+5. Estimer la complexité (T-shirt sizing: XS, S, M, L, XL)
+6. Générer des critères d'acceptation préliminaires
+
+**Output:** Refinement markdown dans Linear
+
+#### Phase 2: User Story (Story détaillée)
+**Status:** `Refinement Ready` → `UserStory Ready` / `UserStory Failed`
+
+1. Transformer le besoin raffiné en user story formelle (As a, I want, So that)
+2. Définir les critères d'acceptation détaillés et testables
+3. Créer la Definition of Done
+4. Évaluer la valeur business
+5. Estimer la complexité en story points (Fibonacci: 1,2,3,5,8,13,21)
+
+**Output:** User story markdown dans Linear
+
+#### Phase 3: Technical Plan (Plan d'implémentation)
+**Status:** `UserStory Ready` → `Plan Ready` / `Plan Failed`
+
+1. Analyser la codebase avec RAG (Retrieval Augmented Generation)
+2. Définir l'architecture et les décisions techniques
+3. Lister les fichiers à modifier
+4. Créer les étapes d'implémentation détaillées
+5. Définir la stratégie de tests
+6. Identifier les risques techniques
+
+**Output:** Plan technique détaillé dans Linear
+
+### Workflow Features (conservées pour référence future)
+- Génération de code (frontend + backend)
+- Génération des tests (unitaires + E2E)
+- Création d'une Pull Request
+- Exécution CI/CD + auto-fix en boucle si échec
+- Déploiement d'une preview app
+- Merge automatique (si configuré)
+
+**Note:** Les phases Code/PR/CI/Merge seront ajoutées dans une version ultérieure.
 
 ## Architecture & monorepo
 - API : NestJS (REST) - **NestJS only in API layer**
@@ -55,8 +92,17 @@ devflow/
 - Dépendances : `@nestjs/*`, `@prisma/client`, `@temporalio/client`.
 
 ### @devflow/worker
-- Workflow principal : `packages/worker/src/workflows/devflow.workflow.ts`.
-- Activities clés : `syncLinearTask`, `updateLinearTask`, `appendSpecToLinearIssue`, `appendWarningToLinearIssue`, `generateSpecification`, `generateCode`, `generateTests`, `createBranch`, `commitFiles`, `createPullRequest`, `waitForCI`, `runTests`, `analyzeTestFailures`, `mergePullRequest`, `sendNotification`.
+- **Workflow principal** : `packages/worker/src/workflows/devflow.workflow.ts` - Router vers les sous-workflows
+- **Sous-workflows (Three-Phase)** :
+  - `packages/worker/src/workflows/phases/refinement.workflow.ts` - Phase 1
+  - `packages/worker/src/workflows/phases/user-story.workflow.ts` - Phase 2
+  - `packages/worker/src/workflows/phases/technical-plan.workflow.ts` - Phase 3
+- **Activities Three-Phase** :
+  - `generateRefinement`, `appendRefinementToLinearIssue`
+  - `generateUserStory`, `appendUserStoryToLinearIssue`
+  - `generateTechnicalPlan`, `appendTechnicalPlanToLinearIssue`
+- **Activities génériques** : `syncLinearTask`, `updateLinearTask`, `retrieveContext`, `sendNotification`
+- **Activities legacy** (conservées) : `generateSpecification`, `generateCode`, `generateTests`, `createBranch`, `commitFiles`, `createPullRequest`, `waitForCI`, `runTests`, `analyzeTestFailures`, `mergePullRequest`
 
 ### @devflow/sdk
 - **VCS** : GitHubProvider (13/13).
@@ -90,29 +136,33 @@ DevFlow utilise un système de configuration à 4 couches pour gérer les contra
 
 Voir [ARCHITECTURE.md](./ARCHITECTURE.md#configuration-management) pour les détails complets.
 
-## Workflows Temporal
-`devflowWorkflow` orchestre Linear → Spec → Code → PR → CI → Merge avec auto-fix.
+## Workflows Temporal (Three-Phase)
+Le workflow principal `devflowWorkflow` agit comme un router qui dirige vers le sous-workflow approprié selon le status Linear.
 
-### Data Flow
+### Three-Phase Data Flow
 ```
-Linear Webhook → API → Temporal Workflow
+Linear Webhook → API → devflowWorkflow (router)
         ↓
-    syncLinearTask
+    syncLinearTask (détecter le status)
         ↓
-    generateSpecification (Claude/GPT-4)
-        ↓
-    appendSpecToLinearIssue + appendWarningToLinearIssue
-        ↓
-    generateCode + generateTests
-        ↓
-    createBranch → commitFiles → createPullRequest
-        ↓
-    waitForCI (loop with auto-fix up to 3 attempts)
-        ↓
-    mergePullRequest
-        ↓
-    updateLinearTask (Done)
+    ┌────────────────┬────────────────┬────────────────┐
+    ↓                ↓                ↓                ↓
+Phase 1          Phase 2          Phase 3
+To Refinement    Refinement Ready UserStory Ready
+    ↓                ↓                ↓
+refinementWorkflow userStoryWorkflow technicalPlanWorkflow
+    ↓                ↓                ↓
+generateRefinement generateUserStory generateTechnicalPlan
+    ↓                ↓                ↓
+Refinement Ready UserStory Ready  Plan Ready
 ```
+
+### Routing Logic
+- `To Refinement` → `refinementWorkflow` (Phase 1)
+- `Refinement Ready` → `userStoryWorkflow` (Phase 2)
+- `UserStory Ready` → `technicalPlanWorkflow` (Phase 3)
+
+Chaque phase met à jour le status Linear et ajoute son output en markdown dans la description de l'issue.
 
 ## Configuration rapide
 
@@ -122,14 +172,31 @@ Linear Webhook → API → Temporal Workflow
 # Generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 OAUTH_ENCRYPTION_KEY=<base64-string>
 
-# Linear
+# Linear - Three-Phase Agile Workflow
 LINEAR_WEBHOOK_SECRET=xxx
-LINEAR_TRIGGER_STATUS=To Spec
-LINEAR_NEXT_STATUS=Spec Ready
+
+# Phase 1: Refinement
+LINEAR_STATUS_TO_REFINEMENT=To Refinement
+LINEAR_STATUS_REFINEMENT_IN_PROGRESS=Refinement In Progress
+LINEAR_STATUS_REFINEMENT_READY=Refinement Ready
+LINEAR_STATUS_REFINEMENT_FAILED=Refinement Failed
+
+# Phase 2: User Story
+LINEAR_STATUS_TO_USER_STORY=Refinement Ready
+LINEAR_STATUS_USER_STORY_IN_PROGRESS=UserStory In Progress
+LINEAR_STATUS_USER_STORY_READY=UserStory Ready
+LINEAR_STATUS_USER_STORY_FAILED=UserStory Failed
+
+# Phase 3: Technical Plan
+LINEAR_STATUS_TO_PLAN=UserStory Ready
+LINEAR_STATUS_PLAN_IN_PROGRESS=Plan In Progress
+LINEAR_STATUS_PLAN_READY=Plan Ready
+LINEAR_STATUS_PLAN_FAILED=Plan Failed
 
 # AI Providers
 OPENROUTER_API_KEY=sk-or-xxx
 OPENROUTER_MODEL=anthropic/claude-sonnet-4
+ENABLE_MULTI_LLM=false  # Set to 'true' to use multi-LLM (Claude, GPT-4, Gemini)
 
 # Database
 DATABASE_URL=postgresql://devflow:changeme@localhost:5432/devflow
@@ -142,6 +209,20 @@ TEMPORAL_TASK_QUEUE=devflow
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
+
+# Optional: Default project for webhooks
+DEFAULT_PROJECT_ID=your-project-id
+```
+
+### Migration depuis le système legacy
+Si vous utilisez l'ancien système single-phase (`To Spec` → `Spec Ready`), utilisez le script de migration:
+
+```bash
+# Dry run (preview changes)
+LINEAR_API_KEY=xxx npx ts-node scripts/migrate-linear-statuses.ts --dry-run
+
+# Execute migration
+LINEAR_API_KEY=xxx npx ts-node scripts/migrate-linear-statuses.ts
 ```
 
 ### Configuration OAuth (par projet)

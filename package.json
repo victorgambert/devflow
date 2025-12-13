@@ -41,6 +41,7 @@
     "db:seed": "pnpm --filter @devflow/api db:seed"
   },
   "devDependencies": {
+    "@linear/sdk": "^29.0.0",
     "@types/node": "^20.11.5",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
