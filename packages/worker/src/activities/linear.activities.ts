@@ -481,6 +481,119 @@ export async function appendTechnicalPlanToLinearIssue(input: {
   }
 }
 
+/**
+ * Create Linear sub-issues from refinement split suggestion
+ * Automatically creates sub-tasks when refinement complexity is L or XL
+ */
+export async function createLinearSubtasks(input: {
+  projectId: string;
+  parentIssueId: string;
+  proposedStories: Array<{
+    title: string;
+    description: string;
+    dependencies?: number[];
+    acceptanceCriteria?: string[];
+  }>;
+}): Promise<{
+  created: Array<{ index: number; issueId: string; identifier: string; title: string }>;
+  failed: Array<{ index: number; title: string; error: string }>;
+}> {
+  logger.info('Creating sub-issues', {
+    parentIssueId: input.parentIssueId,
+    count: input.proposedStories.length,
+  });
+
+  const apiKey = await resolveLinearApiKey(input.projectId);
+  const client = createLinearClient(apiKey);
+
+  const created: Array<{ index: number; issueId: string; identifier: string; title: string }> = [];
+  const failed: Array<{ index: number; title: string; error: string }> = [];
+
+  try {
+    // Get parent issue details
+    const parentIssue = await client.getIssue(input.parentIssueId);
+    const team = await parentIssue.team;
+    const state = await parentIssue.state;
+
+    if (!team) {
+      throw new Error(`Parent issue ${input.parentIssueId} has no team`);
+    }
+
+    const teamId = team.id;
+    const parentStateId = state?.id;
+
+    // Create each sub-issue
+    for (let i = 0; i < input.proposedStories.length; i++) {
+      const story = input.proposedStories[i];
+
+      try {
+        // Build description with dependencies and acceptance criteria
+        let description = story.description;
+
+        // Add dependencies section
+        if (story.dependencies && story.dependencies.length > 0) {
+          description += '\n\n## Dependencies\n';
+          story.dependencies.forEach((depIndex) => {
+            if (depIndex < input.proposedStories.length) {
+              description += `- Depends on: **${input.proposedStories[depIndex].title}**\n`;
+            }
+          });
+        }
+
+        // Add acceptance criteria section
+        if (story.acceptanceCriteria && story.acceptanceCriteria.length > 0) {
+          description += '\n\n## Acceptance Criteria\n';
+          story.acceptanceCriteria.forEach((criterion, idx) => {
+            description += `${idx + 1}. ${criterion}\n`;
+          });
+        }
+
+        // Create sub-issue
+        const issue = await client.createIssue({
+          teamId,
+          title: story.title,
+          description,
+          parentId: input.parentIssueId,
+          stateId: parentStateId,
+          subIssueSortOrder: i,
+        });
+
+        created.push({
+          index: i,
+          issueId: issue.id,
+          identifier: issue.identifier,
+          title: story.title,
+        });
+
+        logger.info('Sub-issue created', {
+          index: i,
+          identifier: issue.identifier,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to create sub-issue ${i}`, error as Error);
+
+        failed.push({
+          index: i,
+          title: story.title,
+          error: errorMessage,
+        });
+      }
+    }
+
+    logger.info('Sub-issue creation complete', {
+      total: input.proposedStories.length,
+      created: created.length,
+      failed: failed.length,
+    });
+
+    return { created, failed };
+  } catch (error) {
+    logger.error('Failed to create sub-issues', error as Error);
+    throw error;
+  }
+}
+
 // ============================================
 // Helper Functions
 // ============================================

@@ -32,6 +32,10 @@ export interface WorkflowConfig {
       planReady: string;
       planFailed: string;
     };
+    features?: {
+      // Enable automatic subtask creation in refinement phase for L/XL complexity
+      enableSubtaskCreation?: boolean; // default: true
+    };
   };
   // Can add more workflow-safe config here as needed
 }
@@ -67,6 +71,9 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       planInProgress: 'Plan In Progress',
       planReady: 'Plan Ready',
       planFailed: 'Plan Failed',
+    },
+    features: {
+      enableSubtaskCreation: true, // Enable by default
     },
   },
 };

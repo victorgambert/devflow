@@ -204,6 +204,65 @@ export class LinearClient {
   }
 
   // ============================================
+  // Create Operations
+  // ============================================
+
+  /**
+   * Create a new issue
+   */
+  async createIssue(input: {
+    teamId: string;
+    title: string;
+    description?: string;
+    stateId?: string;
+    parentId?: string;
+    priority?: number;
+    assigneeId?: string;
+    labelIds?: string[];
+    subIssueSortOrder?: number;
+  }): Promise<Issue> {
+    this.logger.info('Creating issue', {
+      teamId: input.teamId,
+      title: input.title,
+      parentId: input.parentId,
+    });
+
+    try {
+      const issueInput: any = {
+        teamId: input.teamId,
+        title: input.title,
+      };
+
+      if (input.description) issueInput.description = input.description;
+      if (input.stateId) issueInput.stateId = input.stateId;
+      if (input.parentId) issueInput.parentId = input.parentId;
+      if (input.priority !== undefined) issueInput.priority = input.priority;
+      if (input.assigneeId) issueInput.assigneeId = input.assigneeId;
+      if (input.labelIds) issueInput.labelIds = input.labelIds;
+      if (input.subIssueSortOrder !== undefined) {
+        issueInput.subIssueSortOrder = input.subIssueSortOrder;
+      }
+
+      const result = await this.client.createIssue(issueInput);
+      const issue = await result.issue;
+
+      if (!issue) {
+        throw new Error('Issue creation returned null');
+      }
+
+      this.logger.info('Issue created', {
+        issueId: issue.id,
+        identifier: issue.identifier,
+      });
+
+      return issue;
+    } catch (error) {
+      this.logger.error('Failed to create issue', error as Error, input);
+      throw error;
+    }
+  }
+
+  // ============================================
   // Comment Operations
   // ============================================
 

@@ -18,7 +18,9 @@ Please provide a comprehensive refinement analysis covering:
 
 3. **QUESTIONS** - What needs clarification from the Product Owner? What assumptions need validation?
 
-4. **SPLIT SUGGESTION** - Should this be broken down into smaller stories? (only if too large)
+4. **SPLIT SUGGESTION** - Should this be broken down into smaller stories? (if complexity is L or XL)
+   - For each proposed sub-story, identify dependencies (which sub-stories must be completed first)
+   - For each proposed sub-story, draft specific acceptance criteria
 
 5. **PRELIMINARY CRITERIA** - How will we validate success? What are the acceptance criteria?
 

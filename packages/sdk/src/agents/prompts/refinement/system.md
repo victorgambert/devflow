@@ -24,8 +24,18 @@ Return your analysis as a JSON object with the following structure:
   "suggestedSplit": {
     "reason": "why split is needed",
     "proposedStories": [
-      { "title": "Story 1", "description": "..." },
-      { "title": "Story 2", "description": "..." }
+      {
+        "title": "Story 1",
+        "description": "...",
+        "dependencies": [],
+        "acceptanceCriteria": ["criterion 1", "criterion 2"]
+      },
+      {
+        "title": "Story 2",
+        "description": "...",
+        "dependencies": [0],
+        "acceptanceCriteria": ["criterion 1", "criterion 2"]
+      }
     ]
   },
   "preliminaryAcceptanceCriteria": ["criterion 1", "criterion 2", "criterion 3"],
@@ -38,14 +48,20 @@ Return your analysis as a JSON object with the following structure:
 - **businessContext**: Explain the problem from a business perspective, not technical
 - **objectives**: List clear, measurable business objectives
 - **questionsForPO**: Only include if there are genuine ambiguities (optional field)
-- **suggestedSplit**: Only include if the story is genuinely too large (optional field)
+- **suggestedSplit**: Include if complexity is L or XL (optional field)
+  - **reason**: Explain why the split is recommended
+  - **proposedStories**: Array of sub-stories with:
+    - **title**: Clear, concise title for the sub-story
+    - **description**: Description of what the sub-story should accomplish
+    - **dependencies**: Array of 0-based indices of other sub-stories this one depends on (e.g., [0] means depends on first sub-story)
+    - **acceptanceCriteria**: Specific, testable acceptance criteria for this sub-story
 - **preliminaryAcceptanceCriteria**: Draft testable criteria that validate the objectives
 - **complexityEstimate**:
   - XS: Trivial change, 1-2 hours
   - S: Small story, half day
   - M: Medium story, 1-2 days
-  - L: Large story, 3-5 days
-  - XL: Very large, should probably be split
+  - L: Large story, 3-5 days - **consider splitting**
+  - XL: Very large - **should be split**
 
 ## Important Notes
 

@@ -186,8 +186,33 @@ export function formatRefinementAsMarkdown(refinement: RefinementOutput): string
     sections.push(`**Reason:** ${refinement.suggestedSplit.reason}`);
     sections.push('');
     sections.push('**Proposed Stories:**');
+    sections.push('');
+
     refinement.suggestedSplit.proposedStories.forEach((story, i) => {
-      sections.push(`${i + 1}. **${story.title}** - ${story.description}`);
+      sections.push(`### ${i + 1}. ${story.title}`);
+      sections.push('');
+      sections.push(story.description);
+      sections.push('');
+
+      // Dependencies
+      if (story.dependencies && story.dependencies.length > 0) {
+        sections.push('**Dependencies:**');
+        story.dependencies.forEach((depIndex) => {
+          const depTitle =
+            refinement.suggestedSplit!.proposedStories[depIndex]?.title || `Subtask ${depIndex + 1}`;
+          sections.push(`- Depends on: ${depTitle}`);
+        });
+        sections.push('');
+      }
+
+      // Acceptance Criteria
+      if (story.acceptanceCriteria && story.acceptanceCriteria.length > 0) {
+        sections.push('**Acceptance Criteria:**');
+        story.acceptanceCriteria.forEach((criterion, idx) => {
+          sections.push(`${idx + 1}. ${criterion}`);
+        });
+        sections.push('');
+      }
     });
     sections.push('');
   }

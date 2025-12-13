@@ -16,6 +16,7 @@ const {
   updateLinearTask,
   generateRefinement,
   appendRefinementToLinearIssue,
+  createLinearSubtasks,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5 minutes',
   retry: {
@@ -34,6 +35,11 @@ export interface RefinementWorkflowResult {
   phase: 'refinement';
   message: string;
   refinement?: any;
+  subtasksCreated?: {
+    total: number;
+    created: number;
+    failed: number;
+  };
 }
 
 /**
@@ -79,6 +85,40 @@ export async function refinementWorkflow(
       multiLLM: result.multiLLM,
     });
 
+    // Step 4.5: Create sub-issues if complexity L or XL (BLOCKING)
+    let subtasksCreated: { total: number; created: number; failed: number } | undefined;
+    const enableSubtasks = config.linear.features?.enableSubtaskCreation ?? true;
+
+    if (
+      enableSubtasks &&
+      result.refinement.suggestedSplit &&
+      (result.refinement.complexityEstimate === 'L' || result.refinement.complexityEstimate === 'XL')
+    ) {
+      // NOTE: No try-catch - let errors propagate to fail the workflow
+      const subtaskResult = await createLinearSubtasks({
+        projectId: input.projectId,
+        parentIssueId: task.linearId,
+        proposedStories: result.refinement.suggestedSplit.proposedStories,
+      });
+
+      // Check if any sub-issues failed to create
+      if (subtaskResult.failed.length > 0) {
+        const errorMsg = `Failed to create ${subtaskResult.failed.length}/${result.refinement.suggestedSplit.proposedStories.length} sub-issues`;
+        throw new Error(errorMsg);
+      }
+
+      subtasksCreated = {
+        total: result.refinement.suggestedSplit.proposedStories.length,
+        created: subtaskResult.created.length,
+        failed: 0,
+      };
+
+      // Add success comment to Linear
+      // Need to import createLinearClient and resolveLinearApiKey within workflow context
+      // Since workflows can't import directly, we'll add comment via another activity
+      // For now, we'll skip the comment and rely on the subtasks themselves
+    }
+
     // Step 5: Update status to Refinement Ready
     await updateLinearTask({
       projectId: input.projectId,
@@ -91,6 +131,7 @@ export async function refinementWorkflow(
       phase: 'refinement',
       message: `Refinement complete for task ${task.identifier}`,
       refinement: result.refinement,
+      subtasksCreated,
     };
   } catch (error) {
     // Update status to Refinement Failed

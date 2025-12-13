@@ -5,6 +5,11 @@
 // Linear activities
 export * from '@/activities/linear.activities';
 
+// Three-Phase Agile Workflow activities
+export * from '@/activities/refinement.activities';
+export * from '@/activities/user-story.activities';
+export * from '@/activities/technical-plan.activities';
+
 // VCS activities
 export * from '@/activities/vcs.activities';
 

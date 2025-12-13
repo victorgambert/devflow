@@ -15,6 +15,9 @@ export {
   formatSpecAsMarkdown,
   formatWarningMessage,
   formatSpecWithWarning,
+  formatRefinementAsMarkdown,
+  formatUserStoryAsMarkdown,
+  formatTechnicalPlanAsMarkdown,
 } from './linear/spec-formatter';
 export type {
   LinearConfig,

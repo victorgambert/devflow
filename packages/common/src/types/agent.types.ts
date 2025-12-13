@@ -108,7 +108,12 @@ export interface RefinementOutput {
   suggestedSplit?: {
     // Découpage suggéré si story trop grosse
     reason: string;
-    proposedStories: Array<{ title: string; description: string }>;
+    proposedStories: Array<{
+      title: string;
+      description: string;
+      dependencies?: number[]; // Indices 0-based des sous-tâches dépendantes
+      acceptanceCriteria?: string[]; // Critères d'acceptation spécifiques
+    }>;
   };
   preliminaryAcceptanceCriteria: string[]; // Critères préliminaires
   complexityEstimate: 'XS' | 'S' | 'M' | 'L' | 'XL'; // T-shirt sizing
