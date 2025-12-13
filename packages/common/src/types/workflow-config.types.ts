@@ -31,6 +31,14 @@ export interface WorkflowConfig {
       planInProgress: string;
       planReady: string;
       planFailed: string;
+
+      // Legacy statuses (for backward compatibility with spec-generation workflow)
+      specInProgress?: string;
+      specReady?: string;
+      specFailed?: string;
+      specification?: string;
+      triggerStatus?: string;
+      nextStatus?: string;
     };
     features?: {
       // Enable automatic subtask creation in refinement phase for L/XL complexity
@@ -71,6 +79,14 @@ export const DEFAULT_WORKFLOW_CONFIG: WorkflowConfig = {
       planInProgress: 'Plan In Progress',
       planReady: 'Plan Ready',
       planFailed: 'Plan Failed',
+
+      // Legacy (backward compatibility)
+      specInProgress: 'Spec In Progress',
+      specReady: 'Spec Ready',
+      specFailed: 'Spec Failed',
+      specification: 'Specification',
+      triggerStatus: 'To Spec',
+      nextStatus: 'In Development',
     },
     features: {
       enableSubtaskCreation: true, // Enable by default

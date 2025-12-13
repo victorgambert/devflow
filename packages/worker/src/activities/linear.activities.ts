@@ -8,7 +8,7 @@ import type {
   RefinementOutput,
   UserStoryGenerationOutput,
   TechnicalPlanGenerationOutput,
-} from '@devflow/common/types/agent.types';
+} from '@devflow/common';
 import {
   createLinearClient,
   formatSpecAsMarkdown,

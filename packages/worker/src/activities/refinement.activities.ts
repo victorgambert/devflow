@@ -6,9 +6,8 @@
  */
 
 import { createLogger } from '@devflow/common';
-import type { RefinementOutput } from '@devflow/common/types/agent.types';
-import { createCodeAgentDriver } from '@devflow/sdk';
-import { loadPrompts } from '@devflow/sdk/agents/prompts/prompt-loader';
+import type { RefinementOutput } from '@devflow/common';
+import { createCodeAgentDriver, loadPrompts } from '@devflow/sdk';
 import { detectTaskType } from './helpers/task-type-detector';
 
 const logger = createLogger('RefinementActivities');
@@ -172,7 +171,7 @@ function parseRefinementResponse(
       complexityEstimate: parsed.complexityEstimate || 'M',
     };
   } catch (error) {
-    logger.error('Failed to parse refinement response', { content, error });
+    logger.error('Failed to parse refinement response', error as Error, { content });
     throw new Error(
       `Failed to parse refinement JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
     );

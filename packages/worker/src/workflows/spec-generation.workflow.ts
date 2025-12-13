@@ -35,15 +35,15 @@ export async function specGenerationWorkflow(input: WorkflowInput): Promise<Work
   // Extract config with fallback to defaults
   const config = input.config || DEFAULT_WORKFLOW_CONFIG;
   const LINEAR_STATUSES = {
-    SPEC_IN_PROGRESS: config.linear.statuses.specInProgress,
-    SPEC_READY: config.linear.statuses.specReady,
-    SPEC_FAILED: config.linear.statuses.specFailed,
-    SPECIFICATION: config.linear.statuses.specification,
+    SPEC_IN_PROGRESS: config.linear.statuses.specInProgress || 'Spec In Progress',
+    SPEC_READY: config.linear.statuses.specReady || 'Spec Ready',
+    SPEC_FAILED: config.linear.statuses.specFailed || 'Spec Failed',
+    SPECIFICATION: config.linear.statuses.specification || 'Specification',
     IN_REVIEW: config.linear.statuses.inReview,
     DONE: config.linear.statuses.done,
     BLOCKED: config.linear.statuses.blocked,
-    TRIGGER_STATUS: config.linear.statuses.triggerStatus,
-    NEXT_STATUS: config.linear.statuses.nextStatus,
+    TRIGGER_STATUS: config.linear.statuses.triggerStatus || 'To Spec',
+    NEXT_STATUS: config.linear.statuses.nextStatus || 'In Development',
   };
 
   let currentStage: WorkflowStage = 'linear_sync' as WorkflowStage;

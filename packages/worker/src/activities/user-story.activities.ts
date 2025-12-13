@@ -9,9 +9,8 @@ import { createLogger } from '@devflow/common';
 import type {
   RefinementOutput,
   UserStoryGenerationOutput,
-} from '@devflow/common/types/agent.types';
-import { createCodeAgentDriver } from '@devflow/sdk';
-import { loadPrompts } from '@devflow/sdk/agents/prompts/prompt-loader';
+} from '@devflow/common';
+import { createCodeAgentDriver, loadPrompts } from '@devflow/sdk';
 
 const logger = createLogger('UserStoryActivities');
 
@@ -160,7 +159,7 @@ function parseUserStoryResponse(content: string): UserStoryGenerationOutput {
       storyPoints: parsed.storyPoints || 5,
     };
   } catch (error) {
-    logger.error('Failed to parse user story response', { content, error });
+    logger.error('Failed to parse user story response', error as Error, { content });
     throw new Error(
       `Failed to parse user story JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
     );

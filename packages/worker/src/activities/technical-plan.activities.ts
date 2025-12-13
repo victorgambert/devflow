@@ -11,14 +11,14 @@ import type {
   TechnicalPlanGenerationInput,
   TechnicalPlanGenerationOutput,
   UserStoryGenerationOutput,
-} from '@devflow/common/types/agent.types';
+} from '@devflow/common';
 import {
   createCodeAgentDriver,
   extractSpecGenerationContext,
   formatContextForAI,
+  loadPrompts,
 } from '@devflow/sdk';
 import type { CodebaseContext } from '@devflow/sdk';
-import { loadPrompts } from '@devflow/sdk/agents/prompts/prompt-loader';
 import { analyzeRepositoryContext } from '@/activities/codebase.activities';
 
 const logger = createLogger('TechnicalPlanActivities');
@@ -101,11 +101,16 @@ export async function generateTechnicalPlan(
         structure: {
           language: primaryLanguage,
           framework: undefined,
+          directories: [],
+          mainPaths: {},
+          fileCount: input.ragContext.chunks.length,
+          summary: 'Context retrieved via RAG',
         },
         dependencies: {
+          production: {},
+          dev: {},
           mainLibraries: [],
-          devDependencies: [],
-          allDependencies: [],
+          summary: 'No dependency information available from RAG',
         },
         similarCode: input.ragContext.chunks.map((chunk) => ({
           path: chunk.filePath,
@@ -114,10 +119,10 @@ export async function generateTechnicalPlan(
           reason: `RAG retrieval (score: ${chunk.score.toFixed(2)})`,
         })),
         documentation: {
+          readme: '',
           conventions: [],
-          codeStyle: [],
-          architectureNotes: [],
           patterns: [],
+          summary: 'No documentation scanned',
         },
         timestamp: new Date(),
       };
@@ -267,7 +272,7 @@ function parseTechnicalPlanResponse(
       filesAffected: parsed.filesAffected,
     };
   } catch (error) {
-    logger.error('Failed to parse technical plan response', { content, error });
+    logger.error('Failed to parse technical plan response', error as Error, { content });
     throw new Error(
       `Failed to parse technical plan JSON: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
