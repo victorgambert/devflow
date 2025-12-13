@@ -88,7 +88,7 @@ devflow/
 ## Packages clés
 
 ### @devflow/api
-- Endpoints : `/health`, `/projects`, `/tasks`, `/tasks/sync/linear`, `/webhooks/linear`, `/webhooks/github`, `/workflows/:id/start`.
+- Endpoints : `/health`, `/projects`, `/projects/:id/integrations` (GET/PUT), `/projects/:id/linear/setup-custom-fields` (POST), `/projects/:id/linear/teams` (GET), `/projects/:id/link-repository` (POST), `/tasks`, `/tasks/sync/linear`, `/webhooks/linear`, `/webhooks/github`, `/workflows/:id/start`, `/auth/*` (OAuth flows).
 - Dépendances : `@nestjs/*`, `@prisma/client`, `@temporalio/client`.
 
 ### @devflow/worker
@@ -107,13 +107,16 @@ devflow/
 ### @devflow/sdk
 - **VCS** : GitHubProvider (13/13).
 - **CI/CD** : GitHubActionsProvider (10/10).
-- **Linear** : `LinearClient` - getTask, queryIssues, queryIssuesByStatus, updateStatus, updateDescription, appendToDescription, addComment.
+- **Linear** : `LinearClient` - getTask, queryIssues, queryIssuesByStatus, updateStatus, updateDescription, appendToDescription, addComment, getCustomFields, createCustomField, getIssueCustomFields, updateIssueCustomField.
+- **LinearSetupService** : `ensureCustomFields(teamId)`, `validateSetup(teamId)`, `getDevFlowFieldValues(issueId)` - Setup automatique des custom fields DevFlow.
 - **AI** : AnthropicProvider, OpenAIProvider, OpenRouterProvider, Cursor (non implémenté).
 - **Codebase analysis** : `structure-analyzer.ts`, `dependency-analyzer.ts`, `code-similarity.service.ts`, `documentation-scanner.ts`.
 - **Gouvernance/Sécurité** : `policy.guard.ts`, `auto-merge.engine.ts`, `audit.logger.ts`, `security.scanner.ts`.
+- **Figma** : `FigmaClient` - getFile, getComments pour extraction de contexte design.
+- **Sentry** : `SentryClient` - getIssue, getIssueEvents pour extraction d'erreurs.
 
 ### @devflow/cli
-- Commandes : `init`, `connect linear`, `connect github`, `status <task>`, `run <task> --step dev`, `doctor`.
+- Commandes : `init`, `project:create` (wizard complet), `project:list`, `project:show`, `oauth:register`, `oauth:connect` (GitHub, Linear, Figma, Sentry, GitHub Issues), `oauth:status`, `integrations:show`, `integrations:configure`, `integrations:setup-linear`, `config:linear`, `workflow:start`, `workflow:status`.
 
 ### @devflow/common
 - **Configuration** : `loadConfig()`, `validateConfig()` - Gestion centralisée de la configuration avec validation Zod

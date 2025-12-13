@@ -1,8 +1,8 @@
-import { PrismaClient, OAuthProvider } from '@prisma/client';
 import { createLogger } from '@devflow/common';
 import { TokenEncryptionService } from './token-encryption.service';
 import { TokenStorageService } from './token-storage.service';
 import { OAuthService } from './oauth.service';
+import { OAuthProvider, OAuthDatabase } from './oauth.types';
 
 const logger = createLogger('TokenRefreshService');
 
@@ -12,7 +12,7 @@ const logger = createLogger('TokenRefreshService');
  */
 export class TokenRefreshService {
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly db: OAuthDatabase,
     private readonly tokenEncryption: TokenEncryptionService,
     private readonly tokenStorage: TokenStorageService,
     private readonly oauthService: OAuthService,
@@ -59,7 +59,7 @@ export class TokenRefreshService {
     provider: OAuthProvider,
   ): Promise<string> {
     // Get connection from database
-    const connection = await this.prisma.oAuthConnection.findUnique({
+    const connection = await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 
@@ -128,7 +128,7 @@ export class TokenRefreshService {
       `Force refreshing token for ${provider} on project ${projectId}`,
     );
 
-    const connection = await this.prisma.oAuthConnection.findUnique({
+    const connection = await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 
@@ -152,7 +152,7 @@ export class TokenRefreshService {
     projectId: string,
     provider: OAuthProvider,
   ): Promise<boolean> {
-    const connection = await this.prisma.oAuthConnection.findUnique({
+    const connection = await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 
@@ -172,7 +172,7 @@ export class TokenRefreshService {
     failureReason: string | null;
     lastRefreshed: Date | null;
   }> {
-    const connection = await this.prisma.oAuthConnection.findUnique({
+    const connection = await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 

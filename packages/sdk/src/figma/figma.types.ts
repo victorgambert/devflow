@@ -49,6 +49,8 @@ export interface FigmaScreenshot {
   nodeName: string;
   imageUrl: string;
   imageBase64?: string;
+  /** AI-generated description of the screenshot (via vision model) */
+  visionAnalysis?: string;
 }
 
 export interface FigmaImagesResponse {

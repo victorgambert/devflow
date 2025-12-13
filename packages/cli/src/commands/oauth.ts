@@ -30,6 +30,9 @@ export const oauthCommands = {
         choices: [
           { title: 'Linear (Authorization Code Flow)', value: 'LINEAR' },
           { title: 'GitHub (Device Flow)', value: 'GITHUB' },
+          { title: 'Figma (Authorization Code Flow)', value: 'FIGMA' },
+          { title: 'Sentry (Authorization Code Flow)', value: 'SENTRY' },
+          { title: 'GitHub Issues (Device Flow)', value: 'GITHUB_ISSUES' },
         ],
       },
       {
@@ -48,20 +51,32 @@ export const oauthCommands = {
         type: 'text',
         name: 'redirectUri',
         message: 'Redirect URI:',
-        initial: (_prev: any, values: any) =>
-          values.provider === 'LINEAR'
-            ? 'http://localhost:3000/api/v1/auth/linear/callback'
-            : '',
+        initial: (_prev: any, values: any) => {
+          const defaults: Record<string, string> = {
+            LINEAR: 'http://localhost:3000/api/v1/auth/linear/callback',
+            FIGMA: 'http://localhost:3000/api/v1/auth/figma/callback',
+            SENTRY: 'http://localhost:3000/api/v1/auth/sentry/callback',
+            GITHUB: '',
+            GITHUB_ISSUES: '',
+          };
+          return defaults[values.provider] || '';
+        },
         validate: (value) => (value ? true : 'Redirect URI is required'),
       },
       {
         type: 'list',
         name: 'scopes',
         message: 'Scopes (comma-separated):',
-        initial: (_prev: any, values: any) =>
-          values.provider === 'LINEAR'
-            ? 'read,write,issues:create,comments:create'
-            : 'repo,workflow,admin:repo_hook',
+        initial: (_prev: any, values: any) => {
+          const defaults: Record<string, string> = {
+            LINEAR: 'read,write,issues:create,comments:create',
+            GITHUB: 'repo,workflow,admin:repo_hook',
+            FIGMA: 'file_read',
+            SENTRY: 'project:read,event:read',
+            GITHUB_ISSUES: 'repo,read:user',
+          };
+          return defaults[values.provider] || '';
+        },
         separator: ',',
       },
       {
@@ -72,8 +87,10 @@ export const oauthCommands = {
           { title: 'Authorization Code Flow', value: 'authorization_code' },
           { title: 'Device Flow', value: 'device' },
         ],
-        initial: (_prev: any, values: any) =>
-          values.provider === 'LINEAR' ? 0 : 1,
+        initial: (_prev: any, values: any) => {
+          const deviceFlowProviders = ['GITHUB', 'GITHUB_ISSUES'];
+          return deviceFlowProviders.includes(values.provider) ? 1 : 0;
+        },
       },
       {
         type: 'text',
@@ -223,8 +240,11 @@ export const oauthCommands = {
           name: 'provider',
           message: 'OAuth Provider:',
           choices: [
-            { title: 'Linear', value: 'LINEAR' },
-            { title: 'GitHub', value: 'GITHUB' },
+            { title: 'Linear (required)', value: 'LINEAR' },
+            { title: 'GitHub (required)', value: 'GITHUB' },
+            { title: 'Figma (optional - for design context)', value: 'FIGMA' },
+            { title: 'Sentry (optional - for error context)', value: 'SENTRY' },
+            { title: 'GitHub Issues (optional - for issue context)', value: 'GITHUB_ISSUES' },
           ],
         },
       ]);
@@ -241,17 +261,22 @@ export const oauthCommands = {
     const spinner = ora('Initiating OAuth connection...').start();
 
     try {
-      const endpoint =
-        provider === 'LINEAR'
-          ? '/auth/linear/authorize'
-          : '/auth/github/device/initiate';
+      // Determine endpoint based on provider
+      const authCodeProviders = ['LINEAR', 'FIGMA', 'SENTRY'];
+      const deviceFlowProviders = ['GITHUB', 'GITHUB_ISSUES'];
+
+      const providerLower = provider.toLowerCase().replace('_', '-');
+      const endpoint = authCodeProviders.includes(provider)
+        ? `/auth/${providerLower}/authorize`
+        : `/auth/${providerLower}/device/initiate`;
 
       const { data } = await apiClient.post(endpoint, { projectId });
 
       spinner.stop();
 
-      if (provider === 'LINEAR') {
-        console.log(chalk.bold('\n🔗 Authorization URL:\n'));
+      // Authorization Code Flow (Linear, Figma, Sentry)
+      if (authCodeProviders.includes(provider)) {
+        console.log(chalk.bold(`\n🔗 ${provider} Authorization:\n`));
         console.log(chalk.cyan(`  ${data.authorizationUrl}\n`));
         console.log(chalk.gray('Opening browser...\n'));
 
@@ -260,11 +285,14 @@ export const oauthCommands = {
 
         console.log(
           chalk.yellow(
-            'Please authorize DevFlow in your browser to complete the connection.\n',
+            `Please authorize DevFlow in your browser to complete the ${provider} connection.\n`,
           ),
         );
-      } else if (provider === 'GITHUB') {
-        console.log(chalk.bold('\n🔗 GitHub Device Flow:\n'));
+      }
+      // Device Flow (GitHub, GitHub Issues)
+      else if (deviceFlowProviders.includes(provider)) {
+        const displayName = provider === 'GITHUB_ISSUES' ? 'GitHub Issues' : 'GitHub';
+        console.log(chalk.bold(`\n🔗 ${displayName} Device Flow:\n`));
         console.log(`  ${chalk.bold('User Code:')} ${chalk.cyan(data.userCode)}`);
         console.log(
           `  ${chalk.bold('Verification URL:')} ${chalk.cyan(data.verificationUri)}\n`,
@@ -285,7 +313,7 @@ export const oauthCommands = {
 
         try {
           const pollResponse = await apiClient.post(
-            '/auth/github/device/poll',
+            `/auth/${providerLower}/device/poll`,
             {
               projectId,
               deviceCode: data.deviceCode,
@@ -293,7 +321,7 @@ export const oauthCommands = {
           );
 
           pollSpinner.succeed(
-            chalk.green('GitHub OAuth connection established!'),
+            chalk.green(`${displayName} OAuth connection established!`),
           );
 
           console.log(chalk.bold('\n✅ Connection Details:\n'));
@@ -413,6 +441,9 @@ export const oauthCommands = {
           choices: [
             { title: 'Linear', value: 'LINEAR' },
             { title: 'GitHub', value: 'GITHUB' },
+            { title: 'Figma', value: 'FIGMA' },
+            { title: 'Sentry', value: 'SENTRY' },
+            { title: 'GitHub Issues', value: 'GITHUB_ISSUES' },
           ],
         },
       ]);

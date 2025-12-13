@@ -1,9 +1,9 @@
-import { PrismaClient, OAuthConnection, OAuthProvider } from '@prisma/client';
 import axios from 'axios';
 import { createLogger } from '@devflow/common';
 import { OAUTH_CONSTANTS } from './oauth-constants';
 import { TokenEncryptionService } from './token-encryption.service';
 import { TokenStorageService } from './token-storage.service';
+import { OAuthConnection, OAuthProvider, OAuthDatabase } from './oauth.types';
 
 const logger = createLogger('OAuthService');
 
@@ -30,7 +30,7 @@ interface UserInfo {
 
 export class OAuthService {
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly db: OAuthDatabase,
     private readonly tokenEncryption: TokenEncryptionService,
     private readonly tokenStorage: TokenStorageService,
   ) {}
@@ -174,7 +174,7 @@ export class OAuthService {
     scopes: string[];
     flowType: string;
   }> {
-    const oauthApp = await this.prisma.oAuthApplication.findUnique({
+    const oauthApp = await this.db.oAuthApplication.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 
@@ -341,7 +341,7 @@ export class OAuthService {
       : null;
 
     // Store in database
-    const connection = await this.prisma.oAuthConnection.upsert({
+    const connection = await this.db.oAuthConnection.upsert({
       where: {
         projectId_provider: { projectId, provider },
       },
@@ -355,6 +355,8 @@ export class OAuthService {
         providerUserId: userInfo.id,
         providerEmail: userInfo.email,
         isActive: true,
+        refreshFailed: false,
+        failureReason: null,
         lastRefreshed: new Date(),
       },
       update: {
@@ -485,7 +487,7 @@ export class OAuthService {
       // Update database if refresh token rotated
       if (tokens.refresh_token && tokens.refresh_token !== refreshToken) {
         const encrypted = this.tokenEncryption.encrypt(tokens.refresh_token);
-        await this.prisma.oAuthConnection.update({
+        await this.db.oAuthConnection.update({
           where: { id: connection.id },
           data: {
             refreshToken: encrypted.ciphertext,
@@ -496,7 +498,7 @@ export class OAuthService {
           },
         });
       } else {
-        await this.prisma.oAuthConnection.update({
+        await this.db.oAuthConnection.update({
           where: { id: connection.id },
           data: {
             lastRefreshed: new Date(),
@@ -523,7 +525,7 @@ export class OAuthService {
       logger.error(`Failed to refresh token for ${connection.provider}`, error);
 
       // Mark refresh as failed
-      await this.prisma.oAuthConnection.update({
+      await this.db.oAuthConnection.update({
         where: { id: connection.id },
         data: {
           refreshFailed: true,
@@ -547,7 +549,7 @@ export class OAuthService {
     logger.info(`Revoking ${provider} connection for project ${projectId}`);
 
     // Delete from database
-    await this.prisma.oAuthConnection.delete({
+    await this.db.oAuthConnection.delete({
       where: { projectId_provider: { projectId, provider } },
     });
 
@@ -561,7 +563,7 @@ export class OAuthService {
    * Get all connections for a project
    */
   async getConnections(projectId: string): Promise<OAuthConnection[]> {
-    return await this.prisma.oAuthConnection.findMany({
+    return await this.db.oAuthConnection.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
@@ -574,7 +576,7 @@ export class OAuthService {
     projectId: string,
     provider: OAuthProvider,
   ): Promise<OAuthConnection | null> {
-    return await this.prisma.oAuthConnection.findUnique({
+    return await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
   }
@@ -603,7 +605,7 @@ export class OAuthService {
     const encrypted = this.tokenEncryption.encrypt(data.clientSecret);
 
     // Upsert OAuth application
-    const oauthApp = await this.prisma.oAuthApplication.upsert({
+    const oauthApp = await this.db.oAuthApplication.upsert({
       where: { projectId_provider: { projectId, provider } },
       create: {
         projectId,
@@ -614,8 +616,8 @@ export class OAuthService {
         redirectUri: data.redirectUri,
         scopes: data.scopes,
         flowType: data.flowType,
-        name: data.name,
-        description: data.description,
+        name: data.name ?? null,
+        description: data.description ?? null,
         isActive: true,
       },
       update: {
@@ -625,8 +627,8 @@ export class OAuthService {
         redirectUri: data.redirectUri,
         scopes: data.scopes,
         flowType: data.flowType,
-        name: data.name,
-        description: data.description,
+        name: data.name ?? null,
+        description: data.description ?? null,
         isActive: true,
       },
     });
@@ -655,7 +657,7 @@ export class OAuthService {
    * Get OAuth applications for a project
    */
   async getOAuthApps(projectId: string) {
-    const apps = await this.prisma.oAuthApplication.findMany({
+    const apps = await this.db.oAuthApplication.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
@@ -686,7 +688,7 @@ export class OAuthService {
     );
 
     // Delete the OAuth app
-    await this.prisma.oAuthApplication.delete({
+    await this.db.oAuthApplication.delete({
       where: { projectId_provider: { projectId, provider } },
     });
 

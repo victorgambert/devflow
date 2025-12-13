@@ -9,8 +9,16 @@ export * from './vcs';
 export * from './ci';
 
 // Linear Client
-export { LinearClient, createLinearClient } from './linear/linear.client';
+export { LinearClient, createLinearClient, type LinearCustomField } from './linear/linear.client';
 export { LinearMapper } from './linear/linear.mapper';
+export {
+  LinearSetupService,
+  createLinearSetupService,
+  DEVFLOW_CUSTOM_FIELDS,
+  type DevFlowCustomFieldKey,
+  type SetupCustomFieldsResult,
+  type ValidateSetupResult,
+} from './linear/linear-setup.service';
 export {
   formatSpecAsMarkdown,
   formatWarningMessage,

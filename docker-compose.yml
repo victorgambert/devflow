@@ -45,11 +45,13 @@ services:
       - qdrant-data:/qdrant/storage
     environment:
       - QDRANT__SERVICE__GRPC_PORT=6334
+    # Note: Qdrant image doesn't have curl/wget, using simple port check
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:6333/healthz']
+      test: ['CMD-SHELL', 'timeout 1 bash -c "</dev/tcp/localhost/6333" || exit 1']
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   # Temporal Server
   temporal:
@@ -92,7 +94,7 @@ services:
     container_name: devflow-api
     restart: unless-stopped
     ports:
-      - '3001:3001'
+      - '3001:8000'
     env_file:
       - .env
     environment:
@@ -117,12 +119,12 @@ services:
         condition: service_healthy
       temporal:
         condition: service_started
-    volumes:
-      - ./packages/api:/app/packages/api
-      - ./packages/common:/app/packages/common
-      - ./packages/sdk:/app/packages/sdk
-      - /app/node_modules
-      - /app/packages/api/node_modules
+    # volumes:
+    #   - ./packages/api:/app/packages/api
+    #   - ./packages/common:/app/packages/common
+    #   - ./packages/sdk:/app/packages/sdk
+    #   - /app/node_modules
+    #   - /app/packages/api/node_modules
 
   # DevFlow Worker (Temporal)
   worker:
@@ -155,12 +157,12 @@ services:
         condition: service_healthy
       temporal:
         condition: service_started
-    volumes:
-      - ./packages/worker:/app/packages/worker
-      - ./packages/common:/app/packages/common
-      - ./packages/sdk:/app/packages/sdk
-      - /app/node_modules
-      - /app/packages/worker/node_modules
+    # volumes:
+    #   - ./packages/worker:/app/packages/worker
+    #   - ./packages/common:/app/packages/common
+    #   - ./packages/sdk:/app/packages/sdk
+    #   - /app/node_modules
+    #   - /app/packages/worker/node_modules
 
   # Ngrok tunnel for webhooks (development only)
   ngrok:

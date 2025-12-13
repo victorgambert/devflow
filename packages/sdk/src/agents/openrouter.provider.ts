@@ -36,7 +36,33 @@ export class OpenRouterProvider implements CodeAgentDriver {
   }
 
   async generate(prompt: AgentPrompt): Promise<AgentResponse> {
-    this.logger.info('Generating response via OpenRouter', { model: this.model });
+    this.logger.info('Generating response via OpenRouter', {
+      model: this.model,
+      hasImages: !!prompt.images?.length,
+    });
+
+    // Build user content - with images if provided (for vision-capable models)
+    type TextContent = { type: 'text'; text: string };
+    type ImageContent = { type: 'image_url'; image_url: { url: string } };
+    type MessageContent = string | (TextContent | ImageContent)[];
+
+    let userContent: MessageContent;
+
+    if (prompt.images && prompt.images.length > 0) {
+      // Multimodal content with images
+      userContent = [
+        { type: 'text' as const, text: prompt.user },
+        ...prompt.images.map((img) => ({
+          type: 'image_url' as const,
+          image_url: {
+            url: `data:${img.mediaType};base64,${img.data}`,
+          },
+        })),
+      ];
+    } else {
+      // Text-only content
+      userContent = prompt.user;
+    }
 
     const response = await axios.post(
       OPENROUTER_ENDPOINT,
@@ -50,7 +76,7 @@ export class OpenRouterProvider implements CodeAgentDriver {
           },
           {
             role: 'user',
-            content: prompt.user,
+            content: userContent,
           },
         ],
       },

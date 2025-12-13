@@ -1,5 +1,5 @@
-import type { PrismaClient } from '@prisma/client';
 import type { RedisClientType } from 'redis';
+import { OAuthDatabase, OAuthProvider } from './oauth.types';
 
 /**
  * OAuth Resolver Service
@@ -10,7 +10,7 @@ import type { RedisClientType } from 'redis';
  */
 export class OAuthResolverService {
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly db: OAuthDatabase,
     private readonly redis: RedisClientType,
   ) {}
 
@@ -36,7 +36,7 @@ export class OAuthResolverService {
    */
   private async getAccessToken(
     projectId: string,
-    provider: 'GITHUB' | 'LINEAR',
+    provider: OAuthProvider,
   ): Promise<string> {
     // Try Redis cache first
     const cacheKey = `oauth:access:${projectId}:${provider}`;
@@ -59,9 +59,9 @@ export class OAuthResolverService {
    */
   async hasActiveConnection(
     projectId: string,
-    provider: 'GITHUB' | 'LINEAR',
+    provider: OAuthProvider,
   ): Promise<boolean> {
-    const connection = await this.prisma.oAuthConnection.findUnique({
+    const connection = await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 
@@ -73,14 +73,14 @@ export class OAuthResolverService {
    */
   async getConnectionInfo(
     projectId: string,
-    provider: 'GITHUB' | 'LINEAR',
+    provider: OAuthProvider,
   ): Promise<{
     exists: boolean;
     isActive: boolean;
     refreshFailed: boolean;
     lastRefreshed: Date | null;
   } | null> {
-    const connection = await this.prisma.oAuthConnection.findUnique({
+    const connection = await this.db.oAuthConnection.findUnique({
       where: { projectId_provider: { projectId, provider } },
     });
 

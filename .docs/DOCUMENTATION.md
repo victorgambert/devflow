@@ -1,8 +1,8 @@
 # 📚 DevFlow - Documentation Complète
 
-**Version:** 1.12.1  
-**Dernière mise à jour:** 6 décembre 2025  
-**Statut:** Production Ready  
+**Version:** 1.13.0
+**Dernière mise à jour:** 13 décembre 2025
+**Statut:** Production Ready
 
 ---
 
@@ -14,10 +14,11 @@
 4. [Installation](#installation)
 5. [Configuration](#configuration)
 6. [Utilisation](#utilisation)
-7. [Providers Supportés](#providers-supportés)
-8. [Tests](#tests)
-9. [Déploiement](#déploiement)
-10. [Troubleshooting](#troubleshooting)
+7. [Intégrations Externes](#intégrations-externes)
+8. [Providers Supportés](#providers-supportés)
+9. [Tests](#tests)
+10. [Déploiement](#déploiement)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -589,6 +590,127 @@ curl -X POST http://localhost:3000/projects/PROJECT_ID/link-repository \
 
 ---
 
+## 🔗 Intégrations Externes
+
+DevFlow peut extraire du contexte depuis des sources externes pour enrichir le refinement des tâches.
+
+### Providers Supportés
+
+| Provider | Type | Flow OAuth | Description |
+|----------|------|------------|-------------|
+| **Figma** | Design | Authorization Code | Extraction screenshots et commentaires |
+| **Sentry** | Monitoring | Authorization Code | Extraction erreurs et stacktraces |
+| **GitHub Issues** | Issue Tracking | Device Flow | Extraction descriptions et discussions |
+
+### Setup
+
+#### 1. Via le wizard project:create (recommandé)
+
+```bash
+devflow project:create
+# Le wizard guide le setup OAuth et Custom Fields automatiquement
+```
+
+Le wizard effectue :
+- OAuth GitHub + Linear (requis)
+- Setup des Custom Fields Linear (Figma URL, Sentry URL, GitHub Issue URL)
+- OAuth optionnel Figma/Sentry/GitHub Issues
+- Configuration des intégrations
+
+#### 2. Manuellement
+
+```bash
+# Setup OAuth pour chaque provider
+devflow oauth:connect <projectId> FIGMA
+devflow oauth:connect <projectId> SENTRY
+devflow oauth:connect <projectId> GITHUB_ISSUES
+
+# Setup Linear Custom Fields
+devflow integrations:setup-linear <projectId>
+
+# Configurer les paramètres par défaut
+devflow integrations:configure <projectId>
+```
+
+### Utilisation
+
+#### Custom Fields Linear
+
+Dans Linear, remplir les custom fields sur vos issues :
+
+| Custom Field | Format | Exemple |
+|--------------|--------|---------|
+| **Figma URL** | URL complète | `https://www.figma.com/file/abc123/Design?node-id=1:2` |
+| **Sentry URL** | URL complète | `https://sentry.io/organizations/myorg/issues/12345/` |
+| **GitHub Issue URL** | URL complète | `https://github.com/owner/repo/issues/123` |
+
+#### Extraction Automatique
+
+DevFlow extraira automatiquement lors du refinement :
+
+**Figma :**
+- Nom du fichier et du frame
+- Commentaires sur le design
+- Screenshot du node (si accessible)
+
+**Sentry :**
+- Titre et message d'erreur
+- Stacktrace complet
+- Métadonnées (browser, OS, user)
+- Nombre d'occurrences
+
+**GitHub Issues :**
+- Titre et description
+- Labels et assignees
+- Commentaires et discussion
+- État et milestone
+
+### Commandes CLI
+
+```bash
+# Afficher la configuration des intégrations
+devflow integrations:show <projectId>
+
+# Configurer les intégrations (Figma file, Sentry org/project, GitHub repo)
+devflow integrations:configure <projectId> \
+  --figma-file <key> \
+  --sentry-org <slug> \
+  --sentry-project <slug> \
+  --github-issues <owner/repo>
+
+# Setup des Custom Fields Linear
+devflow integrations:setup-linear <projectId> --team <teamId>
+```
+
+### API Endpoints
+
+```bash
+# Récupérer la configuration des intégrations
+GET /projects/:id/integrations
+
+# Mettre à jour la configuration
+PUT /projects/:id/integrations
+Content-Type: application/json
+{
+  "figmaFileKey": "abc123",
+  "sentryOrgSlug": "my-org",
+  "sentryProjectSlug": "my-project",
+  "githubIssuesRepo": "owner/repo"
+}
+
+# Lister les teams Linear
+GET /projects/:id/linear/teams
+
+# Setup automatique des Custom Fields Linear
+POST /projects/:id/linear/setup-custom-fields
+Content-Type: application/json
+{
+  "teamId": "team-uuid"
+}
+```
+
+---
+
 ## 🧭 Règles agents & documentation (Claude/Cursor)
 
 Checklist fin de tâche :
@@ -1112,9 +1234,9 @@ devflow/
 
 ---
 
-**DevFlow v1.12.1** - De Linear à Production, Automatiquement. ✨
+**DevFlow v1.13.0** - De Linear à Production, Automatiquement. ✨
 
-**Dernière mise à jour :** 6 décembre 2025  
-**Status :** ✅ Production Ready  
-**Prochaine version :** v1.13.0 (Q1 2025)
+**Dernière mise à jour :** 13 décembre 2025
+**Status :** ✅ Production Ready
+**Prochaine version :** v1.14.0 (Q1 2025)
 

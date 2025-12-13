@@ -4,10 +4,15 @@
 
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { createLogger, DEFAULT_WORKFLOW_CONFIG } from '@devflow/common';
-import { parseRepositoryUrl, GitHubProvider, createVCSDriver } from '@devflow/sdk';
+import {
+  parseRepositoryUrl,
+  GitHubProvider,
+  createLinearClient,
+  createLinearSetupService,
+} from '@devflow/sdk';
 import { PrismaService } from '@/prisma/prisma.service';
 import { TokenRefreshService } from '@/auth/services/token-refresh.service';
-import { CreateProjectDto, UpdateProjectDto } from '@/projects/dto';
+import { CreateProjectDto, UpdateProjectDto, UpdateIntegrationDto } from '@/projects/dto';
 
 @Injectable()
 export class ProjectsService {
@@ -223,6 +228,150 @@ export class ProjectsService {
       }
       this.logger.error('Failed to link repository', error as Error);
       throw new BadRequestException(`Invalid repository URL or cannot access repository: ${(error as Error).message}`);
+    }
+  }
+
+  // ============================================
+  // Integration Configuration (Figma, Sentry, GitHub Issues)
+  // ============================================
+
+  /**
+   * Get project integrations configuration
+   */
+  async getIntegrations(id: string) {
+    this.logger.info('Getting project integrations', { id });
+
+    // Check if project exists
+    await this.findOne(id);
+
+    const integration = await this.prisma.projectIntegration.findUnique({
+      where: { projectId: id },
+    });
+
+    return integration || {
+      projectId: id,
+      figmaFileKey: null,
+      figmaNodeId: null,
+      sentryProjectSlug: null,
+      sentryOrgSlug: null,
+      githubIssuesRepo: null,
+    };
+  }
+
+  /**
+   * Update project integrations configuration
+   */
+  async updateIntegrations(id: string, dto: UpdateIntegrationDto) {
+    this.logger.info('Updating project integrations', { id, dto });
+
+    // Check if project exists
+    await this.findOne(id);
+
+    // Upsert the integration record
+    const integration = await this.prisma.projectIntegration.upsert({
+      where: { projectId: id },
+      create: {
+        projectId: id,
+        figmaFileKey: dto.figmaFileKey,
+        figmaNodeId: dto.figmaNodeId,
+        sentryProjectSlug: dto.sentryProjectSlug,
+        sentryOrgSlug: dto.sentryOrgSlug,
+        githubIssuesRepo: dto.githubIssuesRepo,
+      },
+      update: {
+        figmaFileKey: dto.figmaFileKey,
+        figmaNodeId: dto.figmaNodeId,
+        sentryProjectSlug: dto.sentryProjectSlug,
+        sentryOrgSlug: dto.sentryOrgSlug,
+        githubIssuesRepo: dto.githubIssuesRepo,
+      },
+    });
+
+    this.logger.info('Project integrations updated', { id, integration });
+
+    return integration;
+  }
+
+  // ============================================
+  // Linear Custom Fields Setup
+  // ============================================
+
+  /**
+   * Setup DevFlow custom fields in Linear workspace
+   */
+  async setupLinearCustomFields(projectId: string, teamId: string) {
+    this.logger.info('Setting up Linear custom fields', { projectId, teamId });
+
+    // Check if project exists
+    await this.findOne(projectId);
+
+    // Get Linear OAuth token
+    let token: string;
+    try {
+      token = await this.tokenRefresh.getAccessToken(projectId, 'LINEAR');
+    } catch (error) {
+      this.logger.error('Linear OAuth token not available', error as Error);
+      throw new BadRequestException(
+        'Linear OAuth not configured for this project. Please connect Linear first.'
+      );
+    }
+
+    // Create Linear client and setup service
+    const linearClient = createLinearClient(token);
+    const setupService = createLinearSetupService(linearClient);
+
+    try {
+      // Ensure custom fields exist (create if missing)
+      const result = await setupService.ensureCustomFields(teamId);
+
+      this.logger.info('Linear custom fields setup complete', {
+        projectId,
+        teamId,
+        created: result.created,
+        existing: result.existing,
+      });
+
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to setup Linear custom fields', error as Error);
+      throw new BadRequestException(
+        `Failed to setup Linear custom fields: ${(error as Error).message}`
+      );
+    }
+  }
+
+  /**
+   * Get Linear teams for a project
+   */
+  async getLinearTeams(projectId: string) {
+    this.logger.info('Getting Linear teams', { projectId });
+
+    // Check if project exists
+    await this.findOne(projectId);
+
+    // Get Linear OAuth token
+    let token: string;
+    try {
+      token = await this.tokenRefresh.getAccessToken(projectId, 'LINEAR');
+    } catch (error) {
+      this.logger.error('Linear OAuth token not available', error as Error);
+      throw new BadRequestException(
+        'Linear OAuth not configured for this project. Please connect Linear first.'
+      );
+    }
+
+    // Create Linear client and get teams
+    const linearClient = createLinearClient(token);
+
+    try {
+      const teams = await linearClient.getTeams();
+      this.logger.info('Linear teams retrieved', { projectId, count: teams.length });
+      return teams;
+    } catch (error) {
+      this.logger.error('Failed to get Linear teams', error as Error);
+      throw new BadRequestException(
+        `Failed to get Linear teams: ${(error as Error).message}`
+      );
     }
   }
 }

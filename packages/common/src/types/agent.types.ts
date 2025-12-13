@@ -2,9 +2,20 @@
  * Agent Types - For AI code agents
  */
 
+/**
+ * Image content for vision-capable models
+ */
+export interface AgentImage {
+  type: 'base64';
+  mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+  data: string;
+}
+
 export interface AgentPrompt {
   system: string;
   user: string;
+  /** Optional images for vision-capable models (Figma screenshots, etc.) */
+  images?: AgentImage[];
 }
 
 export interface AgentResponse {

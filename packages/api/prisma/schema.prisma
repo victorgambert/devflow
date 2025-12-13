@@ -37,6 +37,7 @@ model Project {
   ragRetrievals    RagRetrieval[]
   oauthApplications OAuthApplication[]
   oauthConnections OAuthConnection[]
+  integration      ProjectIntegration?
 
   @@map("projects")
   @@index([name])
@@ -88,16 +89,21 @@ model Task {
   
   // Metadata (additional fields from Linear)
   metadata    Json?
-  
+
+  // External context links (from Linear Custom Fields)
+  figmaUrl        String?  @map("figma_url")
+  sentryUrl       String?  @map("sentry_url")
+  githubIssueUrl  String?  @map("github_issue_url")
+
   // Timestamps
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
-  
+
   // Relations
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workflows   Workflow[]
   specs       TaskSpec[]
-  
+
   @@map("tasks")
   @@index([projectId])
   @@index([linearId])
@@ -1141,5 +1147,35 @@ model OAuthConnection {
   @@index([projectId])
   @@index([provider])
   @@index([isActive])
+}
+
+// ============================================
+// Project Integrations (Figma, Sentry, GitHub Issues)
+// ============================================
+
+model ProjectIntegration {
+  id              String   @id @default(cuid())
+  projectId       String   @unique @map("project_id")
+
+  // Figma Integration
+  figmaFileKey    String?  @map("figma_file_key")
+  figmaNodeId     String?  @map("figma_node_id")
+
+  // Sentry Integration
+  sentryProjectSlug String? @map("sentry_project_slug")
+  sentryOrgSlug     String? @map("sentry_org_slug")
+
+  // GitHub Issues Integration
+  githubIssuesRepo  String? @map("github_issues_repo") // format: owner/repo
+
+  // Timestamps
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_integrations")
+  @@index([projectId])
 }
 

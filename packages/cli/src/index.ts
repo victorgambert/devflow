@@ -11,6 +11,7 @@ import { workflowCommands } from './commands/workflow';
 import { configCommands } from './commands/config';
 import { oauthCommands } from './commands/oauth';
 import { linearConfigCommands } from './commands/linear-config';
+import { integrationsCommands } from './commands/integrations';
 
 const program = new Command();
 
@@ -44,8 +45,15 @@ program
 
 program
   .command('project:create')
-  .description('Create a new project')
-  .action(projectCommands.create);
+  .description('Create a new project with complete setup wizard')
+  .option('--skip-oauth', 'Skip OAuth configuration')
+  .option('--skip-integrations', 'Skip integration configuration')
+  .action((options) =>
+    projectCommands.create({
+      skipOauth: options.skipOauth,
+      skipIntegrations: options.skipIntegrations,
+    }),
+  );
 
 program
   .command('project:show <id>')
@@ -123,6 +131,38 @@ program
   .command('oauth:delete [projectId] [provider]')
   .description('Delete OAuth application and revoke connections')
   .action(oauthCommands.delete);
+
+// Integrations commands
+program
+  .command('integrations:show [projectId]')
+  .description('Show integration configuration for a project')
+  .action(integrationsCommands.show);
+
+program
+  .command('integrations:configure [projectId]')
+  .description('Configure external integrations (Figma, Sentry, GitHub Issues)')
+  .option('--figma-file <key>', 'Figma file key')
+  .option('--figma-node <id>', 'Figma node ID')
+  .option('--sentry-org <slug>', 'Sentry organization slug')
+  .option('--sentry-project <slug>', 'Sentry project slug')
+  .option('--github-issues <repo>', 'GitHub Issues repository (owner/repo)')
+  .action((projectId, options) =>
+    integrationsCommands.configure(projectId, {
+      figmaFile: options.figmaFile,
+      figmaNode: options.figmaNode,
+      sentryOrg: options.sentryOrg,
+      sentryProject: options.sentryProject,
+      githubIssues: options.githubIssues,
+    }),
+  );
+
+program
+  .command('integrations:setup-linear [projectId]')
+  .description('Setup Linear Custom Fields (Figma URL, Sentry URL, GitHub Issue URL)')
+  .option('-t, --team <id>', 'Linear team ID')
+  .action((projectId, options) =>
+    integrationsCommands.setupLinear(projectId, options.team),
+  );
 
 program.parse();
 

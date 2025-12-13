@@ -15,7 +15,7 @@ import { createLogger } from '@devflow/common';
 
 const logger = createLogger('OAuthContext');
 
-export type OAuthProvider = 'GITHUB' | 'LINEAR';
+export type OAuthProvider = 'GITHUB' | 'LINEAR' | 'SENTRY' | 'FIGMA' | 'GITHUB_ISSUES';
 
 class OAuthResolver {
   private prisma: PrismaClient;
@@ -82,6 +82,45 @@ class OAuthResolver {
       return await this.tokenRefresh.getAccessToken(projectId, 'LINEAR');
     } catch (error) {
       logger.warn('Failed to resolve Linear OAuth token', { projectId, error });
+      throw error;
+    }
+  }
+
+  async resolveSentryToken(projectId: string): Promise<string> {
+    if (!this.initialized) {
+      throw new Error('OAuth context not initialized');
+    }
+
+    try {
+      return await this.tokenRefresh.getAccessToken(projectId, 'SENTRY');
+    } catch (error) {
+      logger.warn('Failed to resolve Sentry OAuth token', { projectId, error });
+      throw error;
+    }
+  }
+
+  async resolveFigmaToken(projectId: string): Promise<string> {
+    if (!this.initialized) {
+      throw new Error('OAuth context not initialized');
+    }
+
+    try {
+      return await this.tokenRefresh.getAccessToken(projectId, 'FIGMA');
+    } catch (error) {
+      logger.warn('Failed to resolve Figma OAuth token', { projectId, error });
+      throw error;
+    }
+  }
+
+  async resolveGitHubIssuesToken(projectId: string): Promise<string> {
+    if (!this.initialized) {
+      throw new Error('OAuth context not initialized');
+    }
+
+    try {
+      return await this.tokenRefresh.getAccessToken(projectId, 'GITHUB_ISSUES');
+    } catch (error) {
+      logger.warn('Failed to resolve GitHub Issues OAuth token', { projectId, error });
       throw error;
     }
   }

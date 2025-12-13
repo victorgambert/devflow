@@ -5,6 +5,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import prompts from 'prompts';
+import open from 'open';
 import { apiClient } from '../utils/api-client';
 import { DEFAULT_WORKFLOW_CONFIG } from '@devflow/common';
 
@@ -34,11 +35,80 @@ export const projectCommands = {
     }
   },
 
-  async create() {
-    console.log(chalk.bold('\n📦 Create New Project\n'));
+  /**
+   * Helper: Connect OAuth provider (handles both device and auth code flows)
+   */
+  async _connectOAuth(projectId: string, provider: string): Promise<boolean> {
+    const authCodeProviders = ['LINEAR', 'FIGMA', 'SENTRY'];
+    const deviceFlowProviders = ['GITHUB', 'GITHUB_ISSUES'];
+
+    const providerLower = provider.toLowerCase().replace('_', '-');
+    const endpoint = authCodeProviders.includes(provider)
+      ? `/auth/${providerLower}/authorize`
+      : `/auth/${providerLower}/device/initiate`;
 
     try {
+      const { data } = await apiClient.post(endpoint, { projectId });
+
+      // Authorization Code Flow
+      if (authCodeProviders.includes(provider)) {
+        console.log(chalk.cyan(`   Authorization URL: ${data.authorizationUrl}`));
+        console.log(chalk.gray('   Opening browser...'));
+        await open(data.authorizationUrl);
+        console.log(chalk.yellow('   Please authorize in your browser.\n'));
+        return true;
+      }
+
+      // Device Flow
+      if (deviceFlowProviders.includes(provider)) {
+        console.log(chalk.cyan(`   User Code: ${chalk.bold(data.userCode)}`));
+        console.log(chalk.cyan(`   Verification URL: ${data.verificationUri}`));
+        console.log(chalk.gray('   Opening browser...'));
+        await open(data.verificationUri);
+
+        const pollSpinner = ora('   Waiting for authorization...').start();
+
+        try {
+          await apiClient.post(`/auth/${providerLower}/device/poll`, {
+            projectId,
+            deviceCode: data.deviceCode,
+          });
+          pollSpinner.succeed(chalk.green(`   ${provider} connected!`));
+          return true;
+        } catch (pollError: any) {
+          pollSpinner.fail(chalk.red(`   ${provider} authorization failed`));
+          return false;
+        }
+      }
+    } catch (error: any) {
+      console.log(chalk.red(`   Failed: ${error.response?.data?.message || error.message}`));
+      return false;
+    }
+    return false;
+  },
+
+  /**
+   * Helper: Check if OAuth is already connected
+   */
+  async _hasOAuthConnection(projectId: string, provider: string): Promise<boolean> {
+    try {
+      const { data } = await apiClient.get(`/auth/connections?project=${projectId}`);
+      return data.connections?.some((c: any) => c.provider === provider && c.isActive) || false;
+    } catch {
+      return false;
+    }
+  },
+
+  async create(options?: { skipOauth?: boolean; skipIntegrations?: boolean }) {
+    console.log(chalk.bold('\n📦 Create New Project - Complete Setup Wizard\n'));
+    console.log(chalk.gray('This wizard will guide you through the complete setup.\n'));
+
+    try {
+      // ============================================
       // Step 1: Project basic info
+      // ============================================
+      console.log(chalk.bold('📝 Step 1: Project Information\n'));
+
       const projectInfo = await prompts([
         {
           type: 'text',
@@ -70,202 +140,291 @@ export const projectCommands = {
       ]);
 
       if (!projectInfo.name) {
-        console.log(chalk.yellow('Project creation cancelled.'));
+        console.log(chalk.yellow('\nProject creation cancelled.'));
         return;
       }
 
-      // Step 2: Configure Linear
-      console.log(chalk.cyan('\n🔧 Linear Configuration\n'));
-
-      const { configureLinear } = await prompts({
-        type: 'confirm',
-        name: 'configureLinear',
-        message: 'Configure Linear workflow now?',
-        initial: true,
-      });
-
-      let config = { ...DEFAULT_WORKFLOW_CONFIG };
-
-      if (configureLinear) {
-        const { customizeStatuses } = await prompts({
-          type: 'confirm',
-          name: 'customizeStatuses',
-          message: 'Customize Linear statuses? (default statuses will be used otherwise)',
-          initial: false,
-        });
-
-        if (customizeStatuses) {
-          console.log(chalk.gray('\nConfiguring Three-Phase Agile statuses...\n'));
-
-          // Phase 1: Refinement
-          console.log(chalk.bold('Phase 1: Refinement'));
-          const refinementStatuses = await prompts([
-            {
-              type: 'text',
-              name: 'toRefinement',
-              message: '  Trigger status (to start refinement):',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.toRefinement,
-            },
-            {
-              type: 'text',
-              name: 'refinementInProgress',
-              message: '  In progress status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.refinementInProgress,
-            },
-            {
-              type: 'text',
-              name: 'refinementReady',
-              message: '  Ready status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.refinementReady,
-            },
-            {
-              type: 'text',
-              name: 'refinementFailed',
-              message: '  Failed status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.refinementFailed,
-            },
-          ]);
-
-          // Phase 2: User Story
-          console.log(chalk.bold('\nPhase 2: User Story'));
-          const userStoryStatuses = await prompts([
-            {
-              type: 'text',
-              name: 'toUserStory',
-              message: '  Trigger status (to start user story):',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.toUserStory,
-            },
-            {
-              type: 'text',
-              name: 'userStoryInProgress',
-              message: '  In progress status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.userStoryInProgress,
-            },
-            {
-              type: 'text',
-              name: 'userStoryReady',
-              message: '  Ready status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.userStoryReady,
-            },
-            {
-              type: 'text',
-              name: 'userStoryFailed',
-              message: '  Failed status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.userStoryFailed,
-            },
-          ]);
-
-          // Phase 3: Technical Plan
-          console.log(chalk.bold('\nPhase 3: Technical Plan'));
-          const planStatuses = await prompts([
-            {
-              type: 'text',
-              name: 'toPlan',
-              message: '  Trigger status (to start planning):',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.toPlan,
-            },
-            {
-              type: 'text',
-              name: 'planInProgress',
-              message: '  In progress status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.planInProgress,
-            },
-            {
-              type: 'text',
-              name: 'planReady',
-              message: '  Ready status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.planReady,
-            },
-            {
-              type: 'text',
-              name: 'planFailed',
-              message: '  Failed status:',
-              initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.planFailed,
-            },
-          ]);
-
-          // Merge custom statuses
-          config = {
-            ...DEFAULT_WORKFLOW_CONFIG,
-            linear: {
-              ...DEFAULT_WORKFLOW_CONFIG.linear,
-              statuses: {
-                ...DEFAULT_WORKFLOW_CONFIG.linear.statuses,
-                ...refinementStatuses,
-                ...userStoryStatuses,
-                ...planStatuses,
-              },
-            },
-          };
-        }
-
-        // Features configuration
-        const { enableSubtaskCreation } = await prompts({
-          type: 'confirm',
-          name: 'enableSubtaskCreation',
-          message: 'Enable automatic subtask creation for L/XL complexity tasks?',
-          initial: DEFAULT_WORKFLOW_CONFIG.linear.features?.enableSubtaskCreation ?? true,
-        });
-
-        config = {
-          ...config,
-          linear: {
-            ...config.linear,
-            features: {
-              enableSubtaskCreation,
-            },
-          },
-        };
-      }
-
-      // Step 3: Confirm and create
-      console.log(chalk.bold('\n📋 Project Summary:\n'));
-      console.log(`  ${chalk.bold('Name:')} ${projectInfo.name}`);
-      console.log(`  ${chalk.bold('Description:')} ${projectInfo.description}`);
-      console.log(`  ${chalk.bold('Repository:')} ${projectInfo.repository}`);
-      if (projectInfo.workspacePath) {
-        console.log(`  ${chalk.bold('Workspace:')} ${projectInfo.workspacePath}`);
-      }
-      console.log(`  ${chalk.bold('Linear configured:')} ${configureLinear ? 'Yes' : 'No (defaults)'}`);
-      console.log();
-
-      const { confirm } = await prompts({
-        type: 'confirm',
-        name: 'confirm',
-        message: 'Create this project?',
-        initial: true,
-      });
-
-      if (!confirm) {
-        console.log(chalk.yellow('Project creation cancelled.'));
-        return;
-      }
-
-      // Create project
-      const spinner = ora('Creating project...').start();
-
+      // Create project first
+      const createSpinner = ora('Creating project...').start();
       const { data: project } = await apiClient.post('/projects', {
         name: projectInfo.name,
         description: projectInfo.description,
         repository: projectInfo.repository,
         workspacePath: projectInfo.workspacePath || undefined,
-        config,
+        config: DEFAULT_WORKFLOW_CONFIG,
+      });
+      createSpinner.succeed(chalk.green(`Project created: ${chalk.blue(project.id)}`));
+
+      // ============================================
+      // Step 2: Required OAuth Connections
+      // ============================================
+      if (!options?.skipOauth) {
+        console.log(chalk.bold('\n🔐 Step 2: Required OAuth Connections\n'));
+        console.log(chalk.gray('These integrations are required for DevFlow to work.\n'));
+
+        // GitHub OAuth (required)
+        console.log(chalk.bold('🔗 GitHub (required for repository access)'));
+        const githubConnected = await this._connectOAuth(project.id, 'GITHUB');
+        if (!githubConnected) {
+          console.log(chalk.yellow('   Skipped - you can connect later with: devflow oauth:connect'));
+        }
+
+        // Linear OAuth (required)
+        console.log(chalk.bold('\n🔗 Linear (required for task management)'));
+        const linearConnected = await this._connectOAuth(project.id, 'LINEAR');
+        if (!linearConnected) {
+          console.log(chalk.yellow('   Skipped - you can connect later with: devflow oauth:connect'));
+        }
+
+        // ============================================
+        // Step 3: Linear Custom Fields Setup
+        // ============================================
+        if (linearConnected) {
+          console.log(chalk.bold('\n📋 Step 3: Linear Custom Fields Setup\n'));
+          console.log(chalk.gray('DevFlow uses custom fields to track external context (Figma, Sentry, GitHub Issues).\n'));
+
+          const teamsSpinner = ora('Fetching Linear teams...').start();
+          try {
+            const { data: teams } = await apiClient.get(`/projects/${project.id}/linear/teams`);
+            teamsSpinner.stop();
+
+            if (teams && teams.length > 0) {
+              const teamAnswer = await prompts({
+                type: 'select',
+                name: 'teamId',
+                message: 'Select Linear team for custom fields:',
+                choices: teams.map((team: any) => ({
+                  title: `${team.name} (${team.key})`,
+                  value: team.id,
+                })),
+              });
+
+              if (teamAnswer.teamId) {
+                const setupSpinner = ora('Setting up custom fields...').start();
+                try {
+                  const { data: setupResult } = await apiClient.post(`/projects/${project.id}/linear/setup-custom-fields`, {
+                    teamId: teamAnswer.teamId,
+                  });
+                  setupSpinner.succeed(chalk.green('Linear custom fields configured!'));
+
+                  if (setupResult.created?.length > 0) {
+                    console.log(chalk.green(`   Created: ${setupResult.created.join(', ')}`));
+                  }
+                  if (setupResult.existing?.length > 0) {
+                    console.log(chalk.gray(`   Already existed: ${setupResult.existing.join(', ')}`));
+                  }
+                } catch (setupError: any) {
+                  setupSpinner.fail(chalk.yellow('Could not setup custom fields'));
+                  console.log(chalk.gray('   You can set them up later with: devflow integrations:setup-linear'));
+                }
+              }
+            }
+          } catch {
+            teamsSpinner.fail(chalk.yellow('Could not fetch Linear teams'));
+          }
+        }
+
+        // ============================================
+        // Step 4: Optional OAuth Connections
+        // ============================================
+        console.log(chalk.bold('\n🔌 Step 4: Optional Integrations\n'));
+        console.log(chalk.gray('These integrations provide additional context for task refinement.\n'));
+
+        const optionalIntegrations = await prompts([
+          {
+            type: 'confirm',
+            name: 'figma',
+            message: 'Connect Figma? (for design context extraction)',
+            initial: false,
+          },
+          {
+            type: 'confirm',
+            name: 'sentry',
+            message: 'Connect Sentry? (for error context extraction)',
+            initial: false,
+          },
+          {
+            type: 'confirm',
+            name: 'githubIssues',
+            message: 'Connect GitHub Issues? (for issue context extraction)',
+            initial: false,
+          },
+        ]);
+
+        if (optionalIntegrations.figma) {
+          console.log(chalk.bold('\n📐 Figma OAuth'));
+          await this._connectOAuth(project.id, 'FIGMA');
+        }
+
+        if (optionalIntegrations.sentry) {
+          console.log(chalk.bold('\n🐛 Sentry OAuth'));
+          await this._connectOAuth(project.id, 'SENTRY');
+        }
+
+        if (optionalIntegrations.githubIssues) {
+          console.log(chalk.bold('\n🔗 GitHub Issues OAuth'));
+          await this._connectOAuth(project.id, 'GITHUB_ISSUES');
+        }
+      }
+
+      // ============================================
+      // Step 5: Integration Settings
+      // ============================================
+      if (!options?.skipIntegrations) {
+        console.log(chalk.bold('\n⚙️  Step 5: Integration Settings\n'));
+        console.log(chalk.gray('Configure default settings for external integrations.\n'));
+
+        const { configureNow } = await prompts({
+          type: 'confirm',
+          name: 'configureNow',
+          message: 'Configure integration settings now?',
+          initial: false,
+        });
+
+        if (configureNow) {
+          const integrationSettings = await prompts([
+            {
+              type: 'text',
+              name: 'figmaFileKey',
+              message: 'Default Figma file key (optional):',
+            },
+            {
+              type: 'text',
+              name: 'sentryOrgSlug',
+              message: 'Sentry organization slug (optional):',
+            },
+            {
+              type: 'text',
+              name: 'sentryProjectSlug',
+              message: 'Sentry project slug (optional):',
+            },
+            {
+              type: 'text',
+              name: 'githubIssuesRepo',
+              message: 'GitHub Issues repository (owner/repo, optional):',
+            },
+          ]);
+
+          // Save non-empty settings
+          const settings: any = {};
+          if (integrationSettings.figmaFileKey) settings.figmaFileKey = integrationSettings.figmaFileKey;
+          if (integrationSettings.sentryOrgSlug) settings.sentryOrgSlug = integrationSettings.sentryOrgSlug;
+          if (integrationSettings.sentryProjectSlug) settings.sentryProjectSlug = integrationSettings.sentryProjectSlug;
+          if (integrationSettings.githubIssuesRepo) settings.githubIssuesRepo = integrationSettings.githubIssuesRepo;
+
+          if (Object.keys(settings).length > 0) {
+            await apiClient.put(`/projects/${project.id}/integrations`, settings);
+            console.log(chalk.green('   Integration settings saved!'));
+          }
+        }
+      }
+
+      // ============================================
+      // Step 6: Linear Workflow Configuration
+      // ============================================
+      console.log(chalk.bold('\n📊 Step 6: Linear Workflow Configuration\n'));
+
+      const { customizeWorkflow } = await prompts({
+        type: 'confirm',
+        name: 'customizeWorkflow',
+        message: 'Customize Linear workflow statuses? (default Three-Phase Agile)',
+        initial: false,
       });
 
-      spinner.succeed(chalk.green('✓ Project created successfully!'));
+      let config = { ...DEFAULT_WORKFLOW_CONFIG };
 
-      console.log(chalk.bold('\n📦 Project Details:\n'));
-      console.log(`  ${chalk.bold('ID:')} ${chalk.blue(project.id)}`);
-      console.log(`  ${chalk.bold('Name:')} ${project.name}`);
-      console.log(`  ${chalk.bold('Repository:')} ${project.repository}`);
-      console.log();
+      if (customizeWorkflow) {
+        console.log(chalk.gray('\nConfiguring Three-Phase Agile statuses...\n'));
 
-      console.log(chalk.gray('Next steps:'));
-      console.log(chalk.gray('  1. Connect OAuth: devflow oauth:connect ' + project.id));
-      console.log(chalk.gray('  2. View project: devflow project:show ' + project.id));
+        // Phase 1: Refinement
+        console.log(chalk.bold('Phase 1: Refinement'));
+        const refinementStatuses = await prompts([
+          {
+            type: 'text',
+            name: 'toRefinement',
+            message: '  Trigger status:',
+            initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.toRefinement,
+          },
+          {
+            type: 'text',
+            name: 'refinementReady',
+            message: '  Ready status:',
+            initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.refinementReady,
+          },
+        ]);
+
+        // Phase 2: User Story
+        console.log(chalk.bold('\nPhase 2: User Story'));
+        const userStoryStatuses = await prompts([
+          {
+            type: 'text',
+            name: 'userStoryReady',
+            message: '  Ready status:',
+            initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.userStoryReady,
+          },
+        ]);
+
+        // Phase 3: Technical Plan
+        console.log(chalk.bold('\nPhase 3: Technical Plan'));
+        const planStatuses = await prompts([
+          {
+            type: 'text',
+            name: 'planReady',
+            message: '  Ready status:',
+            initial: DEFAULT_WORKFLOW_CONFIG.linear.statuses.planReady,
+          },
+        ]);
+
+        config = {
+          ...DEFAULT_WORKFLOW_CONFIG,
+          linear: {
+            ...DEFAULT_WORKFLOW_CONFIG.linear,
+            statuses: {
+              ...DEFAULT_WORKFLOW_CONFIG.linear.statuses,
+              ...refinementStatuses,
+              ...userStoryStatuses,
+              ...planStatuses,
+            },
+          },
+        };
+      }
+
+      // Features
+      const { enableSubtaskCreation } = await prompts({
+        type: 'confirm',
+        name: 'enableSubtaskCreation',
+        message: 'Enable automatic subtask creation for L/XL tasks?',
+        initial: true,
+      });
+
+      config.linear.features = { enableSubtaskCreation };
+
+      // Update project config
+      await apiClient.put(`/projects/${project.id}`, { config });
+
+      // ============================================
+      // Final Summary
+      // ============================================
+      console.log('\n' + '='.repeat(50));
+      console.log(chalk.bold.green('\n✅ Project Setup Complete!\n'));
+
+      console.log(chalk.bold('📦 Project Details:'));
+      console.log(`   ID: ${chalk.blue(project.id)}`);
+      console.log(`   Name: ${project.name}`);
+      console.log(`   Repository: ${project.repository}`);
+
+      console.log(chalk.bold('\n💡 Next Steps:'));
+      console.log(chalk.gray('   1. Create a Linear issue with status "To Refinement"'));
+      console.log(chalk.gray('   2. Fill in Figma URL / Sentry URL / GitHub Issue URL custom fields (optional)'));
+      console.log(chalk.gray(`   3. Run: devflow workflow:start --project ${project.id}`));
+
+      console.log(chalk.bold('\n📚 Useful Commands:'));
+      console.log(chalk.gray(`   devflow project:show ${project.id}`));
+      console.log(chalk.gray(`   devflow integrations:show ${project.id}`));
+      console.log(chalk.gray(`   devflow oauth:status ${project.id}`));
       console.log();
     } catch (error: any) {
-      console.error(chalk.red('Failed to create project'));
+      console.error(chalk.red('\nFailed to create project'));
       console.error(error.response?.data?.message || error.message);
       process.exit(1);
     }

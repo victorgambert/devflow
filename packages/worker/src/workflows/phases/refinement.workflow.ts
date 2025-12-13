@@ -66,7 +66,7 @@ export async function refinementWorkflow(
       updates: { status: LINEAR_STATUSES.refinementInProgress },
     });
 
-    // Step 3: Generate refinement
+    // Step 3: Generate refinement (with external context from Figma/Sentry/GitHub if available)
     const result = await generateRefinement({
       task: {
         title: task.title,
@@ -75,6 +75,7 @@ export async function refinementWorkflow(
         labels: task.labels,
       },
       projectId: input.projectId,
+      externalLinks: task.externalLinks,
     });
 
     // Step 4: Append refinement to Linear issue

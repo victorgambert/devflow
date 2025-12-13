@@ -6,9 +6,15 @@
  */
 
 import { createLogger } from '@devflow/common';
-import type { RefinementOutput } from '@devflow/common';
+import type { RefinementOutput, AgentImage } from '@devflow/common';
 import { createCodeAgentDriver, loadPrompts } from '@devflow/sdk';
 import { detectTaskType } from './helpers/task-type-detector';
+import {
+  extractExternalContext,
+  formatExternalContextAsMarkdown,
+  hasAnyLink,
+  type ExternalContextLinks,
+} from './context-extraction.activities';
 
 const logger = createLogger('RefinementActivities');
 
@@ -20,6 +26,8 @@ export interface GenerateRefinementInput {
     labels?: string[];
   };
   projectId: string;
+  /** External links to Figma, Sentry, GitHub Issues */
+  externalLinks?: ExternalContextLinks;
 }
 
 export interface GenerateRefinementOutput {
@@ -49,6 +57,7 @@ export async function generateRefinement(
   logger.info('Generating refinement', {
     taskTitle: input.task.title,
     projectId: input.projectId,
+    hasExternalLinks: !!input.externalLinks && hasAnyLink(input.externalLinks),
   });
 
   try {
@@ -56,11 +65,48 @@ export async function generateRefinement(
     const taskType = detectTaskType(input.task);
     logger.info('Task type detected', { taskType });
 
+    // Step 1.5: Extract external context if links provided
+    let externalContextMarkdown = '';
+    let figmaImages: AgentImage[] = [];
+
+    if (input.externalLinks && hasAnyLink(input.externalLinks)) {
+      logger.info('Extracting external context', { links: input.externalLinks });
+
+      const { context, errors } = await extractExternalContext({
+        projectId: input.projectId,
+        links: input.externalLinks,
+      });
+
+      if (errors.length > 0) {
+        logger.warn('Some external context extractions failed', { errors });
+      }
+
+      externalContextMarkdown = formatExternalContextAsMarkdown(context);
+
+      // Collect Figma images for vision (if available)
+      if (context.figma?.screenshots) {
+        figmaImages = context.figma.screenshots
+          .filter((s) => s.imageBase64)
+          .slice(0, 3) // Limit to 3 images
+          .map((s) => ({
+            type: 'base64' as const,
+            mediaType: 'image/png' as const,
+            data: s.imageBase64!,
+          }));
+      }
+
+      logger.info('External context extracted', {
+        hasContext: !!externalContextMarkdown,
+        figmaImagesCount: figmaImages.length,
+      });
+    }
+
     // Step 2: Load prompts from markdown files
     const prompts = await loadPrompts('refinement', {
       taskTitle: input.task.title,
       taskDescription: input.task.description || 'No description provided',
       taskPriority: input.task.priority,
+      externalContext: externalContextMarkdown,
     });
 
     // Step 3: Generate refinement with AI
@@ -78,11 +124,14 @@ export async function generateRefinement(
               model,
             });
 
-            const response = await agent.generate(prompts);
+            const response = await agent.generate({
+              ...prompts,
+              images: figmaImages.length > 0 ? figmaImages : undefined,
+            });
             const parsed = parseRefinementResponse(response.content);
             const score = scoreRefinement(parsed);
 
-            logger.info(`Refinement generated with ${model}`, { score });
+            logger.info(`Refinement generated with ${model}`, { score, hasImages: figmaImages.length > 0 });
 
             return {
               model,
@@ -128,11 +177,15 @@ export async function generateRefinement(
         model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
       });
 
-      const response = await agent.generate(prompts);
+      const response = await agent.generate({
+        ...prompts,
+        images: figmaImages.length > 0 ? figmaImages : undefined,
+      });
       const refinement = parseRefinementResponse(response.content);
 
       logger.info('Refinement generated successfully', {
         model: process.env.OPENROUTER_MODEL || 'anthropic/claude-sonnet-4',
+        hasImages: figmaImages.length > 0,
       });
 
       return {

@@ -5,7 +5,12 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ProjectsService } from '@/projects/projects.service';
-import { CreateProjectDto, UpdateProjectDto, LinkRepositoryDto } from '@/projects/dto';
+import {
+  CreateProjectDto,
+  UpdateProjectDto,
+  LinkRepositoryDto,
+  UpdateIntegrationDto,
+} from '@/projects/dto';
 
 @ApiTags('Projects')
 @Controller('projects')
@@ -67,5 +72,64 @@ export class ProjectsController {
   @ApiResponse({ status: 404, description: 'Project not found' })
   async remove(@Param('id') id: string) {
     return this.projectsService.remove(id);
+  }
+
+  // ============================================
+  // Integration Configuration (Figma, Sentry, GitHub Issues)
+  // ============================================
+
+  @Get(':id/integrations')
+  @ApiOperation({ summary: 'Get project integrations configuration' })
+  @ApiResponse({ status: 200, description: 'Integration configuration' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async getIntegrations(@Param('id') id: string) {
+    return this.projectsService.getIntegrations(id);
+  }
+
+  @Put(':id/integrations')
+  @ApiOperation({ summary: 'Update project integrations configuration' })
+  @ApiResponse({ status: 200, description: 'Integration configuration updated' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async updateIntegrations(
+    @Param('id') id: string,
+    @Body() dto: UpdateIntegrationDto,
+  ) {
+    return this.projectsService.updateIntegrations(id, dto);
+  }
+
+  // ============================================
+  // Linear Custom Fields Setup
+  // ============================================
+
+  @Post(':id/linear/setup-custom-fields')
+  @ApiOperation({ summary: 'Setup DevFlow custom fields in Linear workspace' })
+  @ApiResponse({
+    status: 200,
+    description: 'Custom fields created/verified',
+    schema: {
+      type: 'object',
+      properties: {
+        created: { type: 'array', items: { type: 'string' } },
+        existing: { type: 'array', items: { type: 'string' } },
+        fieldIds: { type: 'object' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Linear OAuth not configured' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async setupLinearCustomFields(
+    @Param('id') id: string,
+    @Body() dto: { teamId: string },
+  ) {
+    return this.projectsService.setupLinearCustomFields(id, dto.teamId);
+  }
+
+  @Get(':id/linear/teams')
+  @ApiOperation({ summary: 'Get Linear teams for the project' })
+  @ApiResponse({ status: 200, description: 'List of Linear teams' })
+  @ApiResponse({ status: 400, description: 'Linear OAuth not configured' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async getLinearTeams(@Param('id') id: string) {
+    return this.projectsService.getLinearTeams(id);
   }
 }

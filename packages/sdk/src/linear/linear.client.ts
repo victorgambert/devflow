@@ -335,6 +335,184 @@ export class LinearClient {
       name: t.name,
     }));
   }
+
+  // ============================================
+  // Custom Fields Operations
+  // ============================================
+
+  /**
+   * Get custom fields available for a team
+   */
+  async getCustomFields(teamId: string): Promise<LinearCustomField[]> {
+    this.logger.info('Getting custom fields for team', { teamId });
+
+    try {
+      // Use GraphQL to get custom fields for a team
+      const query = `
+        query TeamCustomFields($teamId: String!) {
+          team(id: $teamId) {
+            customFields {
+              nodes {
+                id
+                name
+                type
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await this.client.client.rawRequest(query, { teamId });
+      const data = result.data as any;
+      const customFields = data?.team?.customFields?.nodes || [];
+
+      this.logger.info('Custom fields retrieved', { teamId, count: customFields.length });
+
+      return customFields.map((field: any) => ({
+        id: field.id,
+        name: field.name,
+        type: field.type?.toLowerCase() || 'text',
+        teamId,
+      }));
+    } catch (error) {
+      this.logger.error('Failed to get custom fields', error as Error, { teamId });
+      throw error;
+    }
+  }
+
+  /**
+   * Create a custom field for a team
+   */
+  async createCustomField(teamId: string, name: string, type: string = 'text'): Promise<LinearCustomField> {
+    this.logger.info('Creating custom field', { teamId, name, type });
+
+    try {
+      const mutation = `
+        mutation CreateCustomField($input: CustomFieldCreateInput!) {
+          customFieldCreate(input: $input) {
+            success
+            customField {
+              id
+              name
+              type
+            }
+          }
+        }
+      `;
+
+      const result = await this.client.client.rawRequest(mutation, {
+        input: {
+          teamId,
+          name,
+          type: type.toUpperCase(),
+        },
+      });
+
+      const data = result.data as any;
+      const customField = data?.customFieldCreate?.customField;
+
+      if (!customField) {
+        throw new Error('Custom field creation failed');
+      }
+
+      this.logger.info('Custom field created', { teamId, name, id: customField.id });
+
+      return {
+        id: customField.id,
+        name: customField.name,
+        type: customField.type?.toLowerCase() || 'text',
+        teamId,
+      };
+    } catch (error) {
+      this.logger.error('Failed to create custom field', error as Error, { teamId, name });
+      throw error;
+    }
+  }
+
+  /**
+   * Get custom field values for an issue
+   */
+  async getIssueCustomFields(issueId: string): Promise<Map<string, string>> {
+    this.logger.info('Getting custom field values for issue', { issueId });
+
+    try {
+      const query = `
+        query IssueCustomFields($issueId: String!) {
+          issue(id: $issueId) {
+            customFields {
+              nodes {
+                id
+                value
+                customField {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await this.client.client.rawRequest(query, { issueId });
+      const data = result.data as any;
+      const customFieldValues = data?.issue?.customFields?.nodes || [];
+
+      const values = new Map<string, string>();
+      for (const cfv of customFieldValues) {
+        if (cfv.customField?.name && cfv.value) {
+          values.set(cfv.customField.name, cfv.value);
+        }
+      }
+
+      this.logger.info('Custom field values retrieved', { issueId, count: values.size });
+      return values;
+    } catch (error) {
+      this.logger.error('Failed to get issue custom fields', error as Error, { issueId });
+      // Return empty map instead of throwing - custom fields might not exist
+      return new Map();
+    }
+  }
+
+  /**
+   * Update a custom field value on an issue
+   */
+  async updateIssueCustomField(issueId: string, fieldId: string, value: string): Promise<void> {
+    this.logger.info('Updating custom field on issue', { issueId, fieldId });
+
+    try {
+      const mutation = `
+        mutation UpdateIssueCustomField($issueId: String!, $customFieldId: String!, $value: String!) {
+          issueUpdate(id: $issueId, input: {
+            customFieldValues: [{ customFieldId: $customFieldId, value: $value }]
+          }) {
+            success
+          }
+        }
+      `;
+
+      await this.client.client.rawRequest(mutation, {
+        issueId,
+        customFieldId: fieldId,
+        value,
+      });
+
+      this.logger.info('Custom field updated', { issueId, fieldId });
+    } catch (error) {
+      this.logger.error('Failed to update custom field', error as Error, { issueId, fieldId });
+      throw error;
+    }
+  }
+}
+
+// ============================================
+// Types
+// ============================================
+
+export interface LinearCustomField {
+  id: string;
+  name: string;
+  type: string;
+  teamId?: string;
 }
 
 /**

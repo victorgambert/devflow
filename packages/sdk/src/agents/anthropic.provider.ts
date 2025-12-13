@@ -35,7 +35,43 @@ export class AnthropicProvider implements CodeAgentDriver {
   }
 
   async generate(prompt: AgentPrompt): Promise<AgentResponse> {
-    this.logger.info('Generating response', { model: this.model });
+    this.logger.info('Generating response', {
+      model: this.model,
+      hasImages: !!prompt.images?.length,
+    });
+
+    // Build user content - with images if provided (for vision-capable models)
+    type TextBlock = { type: 'text'; text: string };
+    type ImageBlock = {
+      type: 'image';
+      source: {
+        type: 'base64';
+        media_type: string;
+        data: string;
+      };
+    };
+    type ContentBlock = TextBlock | ImageBlock;
+    type MessageContent = string | ContentBlock[];
+
+    let userContent: MessageContent;
+
+    if (prompt.images && prompt.images.length > 0) {
+      // Multimodal content with images (Anthropic format)
+      userContent = [
+        { type: 'text' as const, text: prompt.user },
+        ...prompt.images.map((img) => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: img.mediaType,
+            data: img.data,
+          },
+        })),
+      ];
+    } else {
+      // Text-only content
+      userContent = prompt.user;
+    }
 
     const response = await axios.post(
       `${this.baseURL}/messages`,
@@ -46,7 +82,7 @@ export class AnthropicProvider implements CodeAgentDriver {
         messages: [
           {
             role: 'user',
-            content: prompt.user,
+            content: userContent,
           },
         ],
       },

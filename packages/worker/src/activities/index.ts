@@ -46,3 +46,15 @@ export {
   type UpdateRepositoryIndexInput,
   type UpdateRepositoryIndexOutput,
 } from '@/activities/rag.activities';
+
+// Context extraction activities (Figma, Sentry, GitHub Issues)
+export {
+  extractExternalContext,
+  formatExternalContextAsMarkdown,
+  parseExternalLinksFromDescription,
+  hasAnyLink,
+  type ExternalContextLinks,
+  type ExternalContext,
+  type ExtractContextInput,
+  type ExtractContextOutput,
+} from '@/activities/context-extraction.activities';

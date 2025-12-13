@@ -16,8 +16,13 @@ import {
   formatRefinementAsMarkdown,
   formatUserStoryAsMarkdown,
   formatTechnicalPlanAsMarkdown,
+  DEVFLOW_CUSTOM_FIELDS,
 } from '@devflow/sdk';
 import { oauthResolver } from '@/services/oauth-context';
+import {
+  parseExternalLinksFromDescription,
+  type ExternalContextLinks,
+} from './context-extraction.activities';
 
 const logger = createLogger('LinearActivities');
 
@@ -59,6 +64,12 @@ export interface SyncLinearTaskOutput {
   labels?: string[];
   url: string;
   acceptanceCriteria?: string[];
+  /** Parsed external links (Figma, Sentry, GitHub Issues) from description */
+  externalLinks?: ExternalContextLinks;
+  /** External context URLs (from Linear Custom Fields or description) */
+  figmaUrl?: string;
+  sentryUrl?: string;
+  githubIssueUrl?: string;
 }
 
 // ============================================
@@ -83,6 +94,76 @@ export async function syncLinearTask(input: SyncLinearTaskInput): Promise<SyncLi
     // Extract acceptance criteria from description (lines starting with "- [ ]" or "- [x]")
     const acceptanceCriteria = extractAcceptanceCriteria(task.description);
 
+    // Parse external links from description (Figma, Sentry, GitHub Issues URLs)
+    const externalLinks = parseExternalLinksFromDescription(task.description);
+
+    logger.info('Parsed external links from description', { externalLinks });
+
+    // ============================================
+    // Extract external context URLs
+    // Priority: Linear Custom Fields > Parsed from description
+    // ============================================
+    let figmaUrl: string | undefined;
+    let sentryUrl: string | undefined;
+    let githubIssueUrl: string | undefined;
+
+    // 1. Try to read from Linear Custom Fields (priority)
+    try {
+      const customFieldValues = await client.getIssueCustomFields(input.taskId);
+
+      const figmaFromCF = customFieldValues.get(DEVFLOW_CUSTOM_FIELDS.FIGMA_URL);
+      const sentryFromCF = customFieldValues.get(DEVFLOW_CUSTOM_FIELDS.SENTRY_URL);
+      const githubIssueFromCF = customFieldValues.get(DEVFLOW_CUSTOM_FIELDS.GITHUB_ISSUE_URL);
+
+      if (figmaFromCF) {
+        figmaUrl = figmaFromCF;
+        logger.debug('Figma URL from Custom Field', { figmaUrl });
+      }
+      if (sentryFromCF) {
+        sentryUrl = sentryFromCF;
+        logger.debug('Sentry URL from Custom Field', { sentryUrl });
+      }
+      if (githubIssueFromCF) {
+        githubIssueUrl = githubIssueFromCF;
+        logger.debug('GitHub Issue URL from Custom Field', { githubIssueUrl });
+      }
+    } catch (cfError) {
+      logger.warn('Could not read Custom Fields from Linear (may not be set up)', {
+        error: (cfError as Error).message
+      });
+    }
+
+    // 2. Fallback: Build URLs from parsed description links
+    if (!figmaUrl && externalLinks.figmaFileKey) {
+      figmaUrl = `https://www.figma.com/file/${externalLinks.figmaFileKey}`;
+      if (externalLinks.figmaNodeId) {
+        figmaUrl += `?node-id=${externalLinks.figmaNodeId}`;
+      }
+      logger.debug('Figma URL from description parsing', { figmaUrl });
+    }
+
+    if (!sentryUrl && externalLinks.sentryIssueId) {
+      // Note: Organization slug would be needed for a complete URL
+      // For now, just store the issue ID reference
+      sentryUrl = `https://sentry.io/issues/${externalLinks.sentryIssueId}`;
+      logger.debug('Sentry URL from description parsing', { sentryUrl });
+    }
+
+    if (!githubIssueUrl && externalLinks.githubIssueRef) {
+      // Convert "owner/repo#123" to full URL
+      const match = externalLinks.githubIssueRef.match(/([^#]+)#(\d+)/);
+      if (match) {
+        githubIssueUrl = `https://github.com/${match[1]}/issues/${match[2]}`;
+        logger.debug('GitHub Issue URL from description parsing', { githubIssueUrl });
+      }
+    }
+
+    logger.info('External context URLs resolved', {
+      figmaUrl: figmaUrl ? 'set' : 'not set',
+      sentryUrl: sentryUrl ? 'set' : 'not set',
+      githubIssueUrl: githubIssueUrl ? 'set' : 'not set',
+    });
+
     return {
       id: task.id,
       linearId: task.linearId,
@@ -95,6 +176,10 @@ export async function syncLinearTask(input: SyncLinearTaskInput): Promise<SyncLi
       labels: task.labels,
       url: task.url,
       acceptanceCriteria,
+      externalLinks,
+      figmaUrl,
+      sentryUrl,
+      githubIssueUrl,
     };
   } catch (error) {
     logger.error('Failed to sync task from Linear', error as Error, input);
