@@ -267,9 +267,25 @@ export class OAuthService {
     // Store state in Redis for validation (expires in 10 minutes)
     await this.tokenStorage.cacheState(projectId, provider, state, 600);
 
+    // Store reverse mapping (state -> projectId) for callback routing
+    await this.tokenStorage.cacheStateMapping(state, provider, projectId, 600);
+
     this.logger.log(`Authorization URL generated for ${provider}`);
 
     return { authorizationUrl, state };
+  }
+
+  /**
+   * Get projectId from state parameter (for OAuth callback routing)
+   * @param state State string from OAuth callback
+   * @param provider OAuth provider
+   * @returns Project ID or null if not found/expired
+   */
+  async getProjectIdFromState(
+    state: string,
+    provider: OAuthProvider,
+  ): Promise<string | null> {
+    return await this.tokenStorage.getProjectIdFromState(state, provider);
   }
 
   /**

@@ -160,21 +160,27 @@ export class AuthController {
 
   /**
    * Linear OAuth callback
-   * GET /auth/linear/callback?code=xxx&state=xxx&project=projectId
+   * GET /auth/linear/callback?code=xxx&state=xxx
    *
    * This endpoint receives the authorization code from Linear after user authorization
+   * The projectId is retrieved from the state parameter via Redis
    */
   @Get('linear/callback')
   async linearCallback(
     @Query('code') code: string,
     @Query('state') state: string,
-    @Query('project') projectId: string,
   ) {
-    this.logger.log(`Linear OAuth callback received for project ${projectId}`);
-
-    if (!code || !state || !projectId) {
-      throw new BadRequestException('code, state, and project are required');
+    if (!code || !state) {
+      throw new BadRequestException('code and state are required');
     }
+
+    // Retrieve projectId from state (stored in Redis during authorization)
+    const projectId = await this.oauthService.getProjectIdFromState(state, 'LINEAR');
+    if (!projectId) {
+      throw new BadRequestException('Invalid or expired state parameter');
+    }
+
+    this.logger.log(`Linear OAuth callback received for project ${projectId}`);
 
     try {
       const connection = await this.oauthService.exchangeAuthorizationCode(
@@ -239,21 +245,27 @@ export class AuthController {
 
   /**
    * Sentry OAuth callback
-   * GET /auth/sentry/callback?code=xxx&state=xxx&project=projectId
+   * GET /auth/sentry/callback?code=xxx&state=xxx
    *
    * This endpoint receives the authorization code from Sentry after user authorization
+   * The projectId is retrieved from the state parameter via Redis
    */
   @Get('sentry/callback')
   async sentryCallback(
     @Query('code') code: string,
     @Query('state') state: string,
-    @Query('project') projectId: string,
   ) {
-    this.logger.log(`Sentry OAuth callback received for project ${projectId}`);
-
-    if (!code || !state || !projectId) {
-      throw new BadRequestException('code, state, and project are required');
+    if (!code || !state) {
+      throw new BadRequestException('code and state are required');
     }
+
+    // Retrieve projectId from state (stored in Redis during authorization)
+    const projectId = await this.oauthService.getProjectIdFromState(state, 'SENTRY');
+    if (!projectId) {
+      throw new BadRequestException('Invalid or expired state parameter');
+    }
+
+    this.logger.log(`Sentry OAuth callback received for project ${projectId}`);
 
     try {
       const connection = await this.oauthService.exchangeAuthorizationCode(
@@ -317,21 +329,27 @@ export class AuthController {
 
   /**
    * Figma OAuth callback
-   * GET /auth/figma/callback?code=xxx&state=xxx&project=projectId
+   * GET /auth/figma/callback?code=xxx&state=xxx
    *
    * This endpoint receives the authorization code from Figma after user authorization
+   * The projectId is retrieved from the state parameter via Redis
    */
   @Get('figma/callback')
   async figmaCallback(
     @Query('code') code: string,
     @Query('state') state: string,
-    @Query('project') projectId: string,
   ) {
-    this.logger.log(`Figma OAuth callback received for project ${projectId}`);
-
-    if (!code || !state || !projectId) {
-      throw new BadRequestException('code, state, and project are required');
+    if (!code || !state) {
+      throw new BadRequestException('code and state are required');
     }
+
+    // Retrieve projectId from state (stored in Redis during authorization)
+    const projectId = await this.oauthService.getProjectIdFromState(state, 'FIGMA');
+    if (!projectId) {
+      throw new BadRequestException('Invalid or expired state parameter');
+    }
+
+    this.logger.log(`Figma OAuth callback received for project ${projectId}`);
 
     try {
       const connection = await this.oauthService.exchangeAuthorizationCode(

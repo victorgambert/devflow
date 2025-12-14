@@ -258,6 +258,9 @@ export const oauthCommands = {
       }
     }
 
+    // Normalize provider to uppercase
+    provider = provider.toUpperCase();
+
     const spinner = ora('Initiating OAuth connection...').start();
 
     try {

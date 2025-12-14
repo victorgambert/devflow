@@ -135,4 +135,45 @@ export class TokenStorageService {
     const key = `oauth:state:${projectId}:${provider}`;
     await this.redis.del(key);
   }
+
+  /**
+   * Cache state-to-projectId mapping for OAuth callback routing
+   * @param state Random state string
+   * @param provider OAuth provider
+   * @param projectId Project identifier
+   * @param ttl Time to live in seconds (default 600s = 10 minutes)
+   */
+  async cacheStateMapping(
+    state: string,
+    provider: string,
+    projectId: string,
+    ttl: number = 600,
+  ): Promise<void> {
+    const key = `oauth:state-map:${state}:${provider}`;
+    await this.redis.set(key, projectId, { EX: ttl });
+  }
+
+  /**
+   * Get projectId from state parameter (for OAuth callback routing)
+   * @param state State string from OAuth callback
+   * @param provider OAuth provider
+   * @returns Project ID or null if not found
+   */
+  async getProjectIdFromState(
+    state: string,
+    provider: string,
+  ): Promise<string | null> {
+    const key = `oauth:state-map:${state}:${provider}`;
+    return await this.redis.get(key);
+  }
+
+  /**
+   * Clear state-to-projectId mapping
+   * @param state State string
+   * @param provider OAuth provider
+   */
+  async clearStateMapping(state: string, provider: string): Promise<void> {
+    const key = `oauth:state-map:${state}:${provider}`;
+    await this.redis.del(key);
+  }
 }
