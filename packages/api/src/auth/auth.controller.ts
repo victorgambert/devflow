@@ -18,8 +18,8 @@ import { OAuthService } from '@/auth/services/oauth.service';
 
 // Supported OAuth providers
 const SUPPORTED_PROVIDERS = ['GITHUB', 'LINEAR', 'SENTRY', 'FIGMA', 'GITHUB_ISSUES'] as const;
-const DEVICE_FLOW_PROVIDERS = ['GITHUB', 'GITHUB_ISSUES'] as const;
-const AUTH_CODE_PROVIDERS = ['LINEAR', 'SENTRY', 'FIGMA'] as const;
+const DEVICE_FLOW_PROVIDERS = ['GITHUB_ISSUES'] as const;
+const AUTH_CODE_PROVIDERS = ['LINEAR', 'SENTRY', 'FIGMA', 'GITHUB'] as const;
 
 /**
  * Auth Controller
@@ -340,6 +340,78 @@ export class AuthController {
       return res.send(this.renderSuccessPage('Figma', connection.providerEmail));
     } catch (error) {
       this.logger.error(`Failed to complete Figma OAuth callback`, error);
+      return res.status(400).send(this.renderErrorPage(error.message));
+    }
+  }
+
+  /**
+   * Initiate GitHub OAuth Authorization Code Flow
+   * POST /auth/github/authorize
+   *
+   * Body: { projectId: string }
+   * Returns: { authorizationUrl: string }
+   */
+  @Post('github/authorize')
+  @HttpCode(HttpStatus.OK)
+  async initiateGitHubAuth(@Body('projectId') projectId: string) {
+    this.logger.log(`Initiating GitHub OAuth for project ${projectId}`);
+
+    if (!projectId) {
+      throw new BadRequestException('projectId is required');
+    }
+
+    try {
+      const result = await this.oauthService.initiateAuthorizationCodeFlow(
+        projectId,
+        'GITHUB',
+      );
+
+      return {
+        authorizationUrl: result.authorizationUrl,
+        message: 'Please visit the authorization URL in your browser',
+      };
+    } catch (error) {
+      this.logger.error(`Failed to initiate GitHub OAuth`, error);
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  /**
+   * GitHub OAuth callback
+   * GET /auth/github/callback?code=xxx&state=xxx
+   *
+   * This endpoint receives the authorization code from GitHub after user authorization
+   * The projectId is retrieved from the state parameter via Redis
+   */
+  @Get('github/callback')
+  async githubCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    if (!code || !state) {
+      return res.status(400).send(this.renderErrorPage('Missing code or state parameter'));
+    }
+
+    // Retrieve projectId from state (stored in Redis during authorization)
+    const projectId = await this.oauthService.getProjectIdFromState(state, 'GITHUB');
+    if (!projectId) {
+      return res.status(400).send(this.renderErrorPage('Invalid or expired state parameter'));
+    }
+
+    this.logger.log(`GitHub OAuth callback received for project ${projectId}`);
+
+    try {
+      const connection = await this.oauthService.exchangeAuthorizationCode(
+        projectId,
+        'GITHUB',
+        code,
+        state,
+      );
+
+      return res.send(this.renderSuccessPage('GitHub', connection.providerEmail));
+    } catch (error) {
+      this.logger.error(`Failed to complete GitHub OAuth callback`, error);
       return res.status(400).send(this.renderErrorPage(error.message));
     }
   }
@@ -735,58 +807,4 @@ export class AuthController {
     `;
   }
 
-  /**
-   * Test Figma context extraction
-   * POST /auth/figma/test-context
-   *
-   * Body: { projectId: string, fileKey: string, nodeId?: string }
-   * Returns: { fileName, lastModified, comments, screenshots }
-   */
-  @Post('figma/test-context')
-  @HttpCode(HttpStatus.OK)
-  async testFigmaContext(
-    @Body('projectId') projectId: string,
-    @Body('fileKey') fileKey: string,
-    @Body('nodeId') nodeId?: string,
-  ) {
-    if (!projectId || !fileKey) {
-      throw new BadRequestException('projectId and fileKey are required');
-    }
-
-    this.logger.log(`Testing Figma context extraction for project ${projectId}, file ${fileKey}`);
-
-    try {
-      // Get Figma context using the OAuth service
-      const context = await this.oauthService.getFigmaContext(projectId, fileKey, nodeId);
-
-      return {
-        success: true,
-        context,
-      };
-    } catch (error: any) {
-      this.logger.error(`Failed to extract Figma context: ${error.message}`);
-      this.logger.error(`Full error: ${JSON.stringify(error.response?.data || error)}`);
-      throw new BadRequestException(error.message);
-    }
-  }
-
-  /**
-   * Test Figma user info
-   * POST /auth/figma/test-me
-   */
-  @Post('figma/test-me')
-  @HttpCode(HttpStatus.OK)
-  async testFigmaMe(@Body('projectId') projectId: string) {
-    if (!projectId) {
-      throw new BadRequestException('projectId is required');
-    }
-
-    try {
-      const userInfo = await this.oauthService.getFigmaUserInfo(projectId);
-      return { success: true, userInfo };
-    } catch (error: any) {
-      this.logger.error(`Failed to get Figma user info: ${error.message}`);
-      throw new BadRequestException(error.message);
-    }
-  }
 }

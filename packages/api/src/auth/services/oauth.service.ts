@@ -2,14 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaClient, OAuthConnection, OAuthProvider } from '@prisma/client';
 import axios from 'axios';
 import { randomBytes, timingSafeEqual } from 'crypto';
-import {
-  OAUTH_CONSTANTS,
-  createFigmaClient,
-  FigmaIntegrationService,
-} from '@devflow/sdk';
+import { OAUTH_CONSTANTS } from '@devflow/sdk';
 import { TokenEncryptionService } from '@/auth/services/token-encryption.service';
 import { TokenStorageService } from '@/auth/services/token-storage.service';
-import { TokenRefreshService } from '@/auth/services/token-refresh.service';
 
 interface DeviceFlowResponse {
   deviceCode: string;
@@ -35,17 +30,12 @@ interface UserInfo {
 @Injectable()
 export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
-  private readonly figmaService: FigmaIntegrationService;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly tokenEncryption: TokenEncryptionService,
     private readonly tokenStorage: TokenStorageService,
-    private readonly tokenRefresh: TokenRefreshService,
-  ) {
-    // Create Figma integration service with TokenRefreshService as resolver
-    this.figmaService = new FigmaIntegrationService(tokenRefresh);
-  }
+  ) {}
 
   /**
    * Initiate Device Flow OAuth
@@ -230,7 +220,7 @@ export class OAuthService {
       `Initiating Authorization Code Flow for ${provider} on project ${projectId}`,
     );
 
-    const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA'];
+    const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA', 'GITHUB'];
     if (!authCodeProviders.includes(provider)) {
       throw new Error(`Authorization Code Flow not supported for ${provider}`);
     }
@@ -273,6 +263,8 @@ export class OAuthService {
       params.set('scope', oauthApp.scopes.join(' '));
     } else if (provider === 'FIGMA') {
       params.set('scope', oauthApp.scopes.join(','));
+    } else if (provider === 'GITHUB') {
+      params.set('scope', oauthApp.scopes.join(' '));
     }
 
     const authorizationUrl = `${config.AUTHORIZE_URL}?${params.toString()}`;
@@ -314,7 +306,7 @@ export class OAuthService {
       `Exchanging authorization code for ${provider} on project ${projectId}`,
     );
 
-    const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA'];
+    const authCodeProviders = ['LINEAR', 'SENTRY', 'FIGMA', 'GITHUB'];
     if (!authCodeProviders.includes(provider)) {
       throw new Error(`Authorization Code Flow not supported for ${provider}`);
     }
@@ -491,12 +483,21 @@ export class OAuthService {
           email: response.data.data.viewer.email || null,
         };
       } else if (provider === 'SENTRY') {
-        const response = await axios.get('https://sentry.io/api/0/users/me/', {
+        // Sentry OAuth doesn't provide a /users/me endpoint
+        // Instead, fetch organizations which the token has access to
+        const response = await axios.get('https://sentry.io/api/0/organizations/', {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
+
+        // Use the first organization's slug as the user ID
+        const firstOrg = response.data[0];
+        if (!firstOrg) {
+          throw new Error('No Sentry organizations found for this token');
+        }
+
         return {
-          id: response.data.id,
-          email: response.data.email || null,
+          id: firstOrg.slug,
+          email: null, // Sentry OAuth doesn't expose user email
         };
       } else if (provider === 'FIGMA') {
         const response = await axios.get('https://api.figma.com/v1/me', {
@@ -791,60 +792,4 @@ export class OAuthService {
     );
   }
 
-  /**
-   * Get Figma design context for a file/node
-   * Used for testing Figma OAuth integration
-   */
-  async getFigmaContext(
-    projectId: string,
-    fileKey: string,
-    nodeId?: string,
-  ): Promise<any> {
-    this.logger.log(
-      `Extracting Figma context for project ${projectId}, file ${fileKey}, node ${nodeId || 'N/A'}`,
-    );
-
-    // Delegate to Figma integration service
-    const context = await this.figmaService.getDesignContext(projectId, fileKey, nodeId);
-
-    this.logger.log(`Successfully extracted Figma context: ${context.fileName}`);
-
-    return context;
-  }
-
-  /**
-   * Get Figma user info to test OAuth token
-   */
-  async getFigmaUserInfo(projectId: string): Promise<any> {
-    this.logger.log(`Getting Figma user info for project ${projectId}`);
-
-    // 1. Get OAuth connection
-    const connection = await this.prisma.oAuthConnection.findUnique({
-      where: {
-        projectId_provider: {
-          projectId,
-          provider: 'FIGMA',
-        },
-      },
-    });
-
-    if (!connection) {
-      throw new Error(`No Figma OAuth connection found for project ${projectId}`);
-    }
-
-    // 2. Get access token
-    let accessToken = await this.tokenStorage.getAccessToken(projectId, 'FIGMA');
-    if (!accessToken) {
-      accessToken = await this.refreshToken(connection);
-    }
-
-    // 3. Call Figma /me endpoint
-    const response = await axios.get('https://api.figma.com/v1/me', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    return response.data;
-  }
 }

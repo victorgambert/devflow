@@ -1,8 +1,8 @@
 # 📚 DevFlow - Documentation Complète
 
-**Version:** 1.14.0
-**Dernière mise à jour:** 13 décembre 2025
-**Statut:** Production Ready
+**Version:** 1.15.0
+**Dernière mise à jour:** 15 décembre 2025
+**Statut:** Production Ready (Integration Testing Added)
 
 ---
 
@@ -633,9 +633,13 @@ DevFlow peut extraire du contexte depuis des sources externes pour enrichir le r
 
 | Provider | Type | Flow OAuth | Description |
 |----------|------|------------|-------------|
+| **GitHub** | VCS | Authorization Code (v1.15.0) | Repository access, issue context extraction |
+| **Linear** | Project Management | Authorization Code | Issue tracking, status updates |
 | **Figma** | Design | Authorization Code | Extraction screenshots et commentaires |
 | **Sentry** | Monitoring | Authorization Code | Extraction erreurs et stacktraces |
 | **GitHub Issues** | Issue Tracking | Device Flow | Extraction descriptions et discussions |
+
+**Note v1.15.0:** GitHub utilise maintenant Authorization Code Flow pour supporter multi-tenant. Chaque projet peut avoir ses propres credentials GitHub OAuth.
 
 ### Setup
 
@@ -715,6 +719,13 @@ devflow integrations:configure <projectId> \
 
 # Setup des Custom Fields Linear
 devflow integrations:setup-linear <projectId> --team <teamId>
+
+# Tester les connexions et l'extraction de contexte (Nouveau v1.15.0)
+devflow integrations:test <projectId>
+devflow integrations:test <projectId> --provider github
+devflow integrations:test <projectId> --provider linear
+devflow integrations:test <projectId> --provider figma
+devflow integrations:test <projectId> --provider sentry
 ```
 
 ### API Endpoints
@@ -742,6 +753,15 @@ Content-Type: application/json
 {
   "teamId": "team-uuid"
 }
+
+# Tester une intégration spécifique (Nouveau v1.15.0)
+POST /integrations/test/:provider
+Content-Type: application/json
+{
+  "projectId": "your-project-id"
+}
+# Providers: github, linear, figma, sentry
+# Retourne: connection status, test result, details
 ```
 
 ---

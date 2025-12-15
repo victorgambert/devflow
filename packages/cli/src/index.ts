@@ -164,5 +164,13 @@ program
     integrationsCommands.setupLinear(projectId, options.team),
   );
 
+program
+  .command('integrations:test [projectId]')
+  .description('Test integration connections and context extraction')
+  .option('-p, --provider <provider>', 'Test specific provider (github, linear, figma, sentry)')
+  .action((projectId, options) =>
+    integrationsCommands.test(projectId, options.provider),
+  );
+
 program.parse();
 

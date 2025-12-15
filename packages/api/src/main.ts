@@ -55,7 +55,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = process.env.API_PORT || 3000;
+  const port = process.env.PORT || process.env.API_PORT || 3000;
   await app.listen(port);
 
   logger.info(`🚀 DevFlow API running on http://localhost:${port}`);

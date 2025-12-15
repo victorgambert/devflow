@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '@/auth/auth.module';
 import { FigmaApiService } from './figma/figma-api.service';
+import { IntegrationsController } from './integrations.controller';
+import { IntegrationsTestService } from './integrations-test.service';
 
 /**
  * Integrations Module
@@ -12,7 +14,8 @@ import { FigmaApiService } from './figma/figma-api.service';
  */
 @Module({
   imports: [AuthModule], // Provides TokenRefreshService
-  providers: [FigmaApiService],
-  exports: [FigmaApiService],
+  controllers: [IntegrationsController],
+  providers: [FigmaApiService, IntegrationsTestService],
+  exports: [FigmaApiService, IntegrationsTestService],
 })
 export class IntegrationsModule {}

@@ -11,13 +11,17 @@
 
 export const OAUTH_CONSTANTS = {
   GITHUB: {
-    // GitHub CLI public client (officially supported by GitHub)
-    // Uses Device Flow (RFC 8628) - no client secret needed
-    CLIENT_ID: 'Iv1.b507a08c87ecfe98',
+    // GitHub OAuth App (supports both Device Flow and Authorization Code Flow)
+    // Device Flow: Uses public client ID (RFC 8628) - no client secret needed
+    // Authorization Code Flow: Credentials stored per-project in database
+    // Register at: https://github.com/settings/developers
+    CLIENT_ID: 'Iv1.b507a08c87ecfe98', // Public client for Device Flow
     DEVICE_CODE_URL: 'https://github.com/login/device/code',
+    AUTHORIZE_URL: 'https://github.com/login/oauth/authorize',
     TOKEN_URL: 'https://github.com/login/oauth/access_token',
-    SCOPES: ['repo', 'workflow', 'admin:repo_hook'],
-    FLOW_TYPE: 'device' as const,
+    USER_API_URL: 'https://api.github.com/user',
+    SCOPES: ['repo', 'read:org', 'read:user'],
+    FLOW_TYPE: 'authorization_code' as const, // Changed to authorization_code for multi-tenant support
   },
   LINEAR: {
     // Linear OAuth App (uses Authorization Code Flow)

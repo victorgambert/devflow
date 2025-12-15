@@ -320,4 +320,125 @@ export const integrationsCommands = {
       process.exit(1);
     }
   },
+
+  /**
+   * Test integration connections and context extraction
+   */
+  async test(projectId?: string, provider?: string) {
+    if (!projectId) {
+      const answer = await prompts({
+        type: 'text',
+        name: 'projectId',
+        message: 'Project ID:',
+        validate: (value) => (value ? true : 'Project ID is required'),
+      });
+
+      if (!answer.projectId) {
+        console.log(chalk.gray('\nCancelled'));
+        return;
+      }
+
+      projectId = answer.projectId;
+    }
+
+    // If provider specified, test only that one
+    const providersToTest = provider
+      ? [provider.toUpperCase()]
+      : ['GITHUB', 'LINEAR', 'FIGMA', 'SENTRY'];
+
+    console.log(chalk.bold('\n🧪 Testing Integration Connections\n'));
+    console.log(`Project: ${chalk.cyan(projectId)}\n`);
+    console.log('━'.repeat(80));
+    console.log();
+
+    let totalTests = 0;
+    let passedTests = 0;
+    let failedTests = 0;
+
+    for (const prov of providersToTest) {
+      totalTests++;
+
+      const providerName = prov === 'GITHUB' ? 'GitHub' :
+                          prov === 'LINEAR' ? 'Linear' :
+                          prov === 'FIGMA' ? 'Figma' : 'Sentry';
+
+      const spinner = ora(`Testing ${providerName} integration...`).start();
+
+      try {
+        // Test connection via API endpoint
+        const { data } = await apiClient.post(`/integrations/test/${prov.toLowerCase()}`, {
+          projectId,
+        });
+
+        spinner.succeed(chalk.green(`${providerName} integration working`));
+
+        console.log(`   ${chalk.gray('Status:')} ${chalk.green('✓ Connected')}`);
+
+        if (data.user) {
+          console.log(`   ${chalk.gray('User:')} ${data.user}`);
+        }
+
+        if (data.testResult) {
+          console.log(`   ${chalk.gray('Test:')} ${data.testResult}`);
+        }
+
+        if (data.details) {
+          Object.entries(data.details).forEach(([key, value]) => {
+            console.log(`   ${chalk.gray(`${key}:`)} ${value}`);
+          });
+        }
+
+        console.log();
+        passedTests++;
+      } catch (error: any) {
+        const errorMsg = error.response?.data?.message || error.message;
+
+        if (errorMsg.includes('No OAuth connection')) {
+          spinner.warn(chalk.yellow(`${providerName} not connected`));
+          console.log(`   ${chalk.gray('Status:')} ${chalk.yellow('⚠ Not configured')}`);
+          console.log(`   ${chalk.gray('Hint:')} Run ${chalk.cyan(`devflow oauth:connect --project ${projectId} --provider ${prov}`)}`);
+        } else if (errorMsg.includes('inactive') || errorMsg.includes('refresh failed')) {
+          spinner.fail(chalk.red(`${providerName} connection inactive`));
+          console.log(`   ${chalk.gray('Status:')} ${chalk.red('✗ Inactive')}`);
+          console.log(`   ${chalk.gray('Error:')} ${errorMsg}`);
+          console.log(`   ${chalk.gray('Hint:')} Reconnect with ${chalk.cyan(`devflow oauth:connect --project ${projectId} --provider ${prov}`)}`);
+          failedTests++;
+        } else {
+          spinner.fail(chalk.red(`${providerName} test failed`));
+          console.log(`   ${chalk.gray('Status:')} ${chalk.red('✗ Error')}`);
+          console.log(`   ${chalk.gray('Error:')} ${errorMsg}`);
+          failedTests++;
+        }
+
+        console.log();
+      }
+    }
+
+    console.log('━'.repeat(80));
+    console.log(chalk.bold('\n📊 Test Summary\n'));
+    console.log(`   Total: ${totalTests}`);
+    console.log(`   ${chalk.green('Passed:')} ${passedTests}`);
+
+    if (failedTests > 0) {
+      console.log(`   ${chalk.red('Failed:')} ${failedTests}`);
+    }
+
+    const notConfigured = totalTests - passedTests - failedTests;
+    if (notConfigured > 0) {
+      console.log(`   ${chalk.yellow('Not Configured:')} ${notConfigured}`);
+    }
+
+    console.log();
+
+    if (passedTests === totalTests) {
+      console.log(chalk.green('✅ All configured integrations are working!\n'));
+      process.exit(0);
+    } else if (failedTests > 0) {
+      console.log(chalk.red('❌ Some integrations have errors. Please check the logs above.\n'));
+      process.exit(1);
+    } else {
+      console.log(chalk.yellow('⚠️  Some integrations are not configured yet.\n'));
+      process.exit(0);
+    }
+  },
 };

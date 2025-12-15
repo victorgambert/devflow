@@ -1,8 +1,8 @@
 # CLAUDE.md - DevFlow
 
-**Version:** 2.0.0
-**Mise à jour:** 13 décembre 2025
-**Statut:** Three-Phase Agile System - Production Ready
+**Version:** 2.1.0
+**Mise à jour:** 15 décembre 2025
+**Statut:** Three-Phase Agile System + Integration Testing - Production Ready
 
 ## Rappel agents (Claude + Cursor)
 - Finir chaque tâche par une étape Documentation (code, infra, CI, scripts, data, tests).
@@ -88,7 +88,10 @@ devflow/
 ## Packages clés
 
 ### @devflow/api
-- Endpoints : `/health`, `/projects`, `/projects/:id/integrations` (GET/PUT), `/projects/:id/linear/setup-custom-fields` (POST), `/projects/:id/linear/teams` (GET), `/projects/:id/link-repository` (POST), `/tasks`, `/tasks/sync/linear`, `/webhooks/linear`, `/webhooks/github`, `/workflows/:id/start`, `/auth/*` (OAuth flows).
+- **Endpoints principaux** : `/health`, `/projects`, `/projects/:id/integrations` (GET/PUT), `/projects/:id/linear/setup-custom-fields` (POST), `/projects/:id/linear/teams` (GET), `/projects/:id/link-repository` (POST), `/tasks`, `/tasks/sync/linear`, `/webhooks/linear`, `/webhooks/github`, `/workflows/:id/start`
+- **Endpoints OAuth** : `/auth/github/authorize` (POST), `/auth/github/callback` (GET), `/auth/linear/authorize` (POST), `/auth/linear/callback` (GET), `/auth/figma/authorize` (POST), `/auth/figma/callback` (GET), `/auth/sentry/authorize` (POST), `/auth/sentry/callback` (GET), `/auth/apps/register` (POST), `/auth/connections` (GET), `/auth/:provider/refresh` (POST), `/auth/:provider/disconnect` (POST)
+- **Endpoints Intégrations** : `/integrations/test/:provider` (POST) - Teste la connexion OAuth et l'extraction de contexte pour GitHub, Linear, Figma, Sentry
+- **Services** : `IntegrationsTestService` - Validation des connexions OAuth et contexte extraction pour tous les providers
 - Dépendances : `@nestjs/*`, `@prisma/client`, `@temporalio/client`.
 
 ### @devflow/worker
@@ -105,19 +108,27 @@ devflow/
 - **Activities legacy** (conservées) : `generateSpecification`, `generateCode`, `generateTests`, `createBranch`, `commitFiles`, `createPullRequest`, `waitForCI`, `runTests`, `analyzeTestFailures`, `mergePullRequest`
 
 ### @devflow/sdk
-- **VCS** : GitHubProvider (13/13).
-- **CI/CD** : GitHubActionsProvider (10/10).
+- **VCS** : `GitHubProvider` (13/13) - Legacy direct client. **GitHubIntegrationService** - OAuth-based service (recommended).
+- **CI/CD** : `GitHubActionsProvider` (10/10).
 - **Linear** : `LinearClient` - getTask, queryIssues, queryIssuesByStatus, updateStatus, updateDescription, appendToDescription, addComment, getCustomFields, createCustomField, getIssueCustomFields, updateIssueCustomField, **getComments**, **getComment**.
 - **LinearSetupService** : `ensureCustomFields(teamId)`, `validateSetup(teamId)`, `getDevFlowFieldValues(issueId)` - Setup automatique des custom fields DevFlow.
-- **LinearSyncApiService** : syncCommentToDatabase, syncAllCommentsForIssue, createCommentInLinear, getTaskComments - Synchronisation des commentaires Linear.
+- **LinearIntegrationService** : OAuth-based service - queryIssues, queryIssuesByStatus, getTask, getComments avec auto token refresh.
 - **AI** : AnthropicProvider, OpenAIProvider, OpenRouterProvider, Cursor (non implémenté).
 - **Codebase analysis** : `structure-analyzer.ts`, `dependency-analyzer.ts`, `code-similarity.service.ts`, `documentation-scanner.ts`.
 - **Gouvernance/Sécurité** : `policy.guard.ts`, `auto-merge.engine.ts`, `audit.logger.ts`, `security.scanner.ts`.
-- **Figma** : `FigmaClient` - getFile, getComments pour extraction de contexte design.
-- **Sentry** : `SentryClient` - getIssue, getIssueEvents pour extraction d'erreurs.
+- **Integration Services Pattern** (Nouveau - v2.1.0):
+  - **GitHubIntegrationService** : getRepository, getIssue, getIssueComments, extractIssueContext - OAuth avec auto token refresh
+  - **LinearIntegrationService** : queryIssues, queryIssuesByStatus, getTask, getComments - OAuth avec auto token refresh
+  - **FigmaIntegrationService** : getFileMetadata, getFileComments, getDesignContext, getNodeImage - OAuth avec auto token refresh
+  - **SentryIntegrationService** : getIssue, getIssueEvents, extractContext - OAuth avec auto token refresh
+  - **Architecture** : Tous les services utilisent `ITokenResolver` pour la résolution automatique des tokens OAuth avec refresh et cache Redis
 
 ### @devflow/cli
-- Commandes : `init`, `project:create` (wizard complet), `project:list`, `project:show`, `oauth:register`, `oauth:connect` (GitHub, Linear, Figma, Sentry, GitHub Issues), `oauth:status`, `integrations:show`, `integrations:configure`, `integrations:setup-linear`, `config:linear`, `workflow:start`, `workflow:status`.
+- **Commandes Projet** : `init`, `project:create` (wizard complet), `project:list`, `project:show`
+- **Commandes OAuth** : `oauth:register`, `oauth:connect` (GitHub, Linear, Figma, Sentry, GitHub Issues), `oauth:status`, `oauth:list`
+- **Commandes Intégrations** : `integrations:show`, `integrations:configure`, `integrations:setup-linear`, `integrations:test` (Nouveau - v2.1.0) - Teste toutes les intégrations ou une spécifique (--provider github|linear|figma|sentry)
+- **Commandes Workflow** : `workflow:start`, `workflow:status`
+- **Commandes Configuration** : `config:linear`
 
 ### @devflow/common
 - **Configuration** : `loadConfig()`, `validateConfig()` - Gestion centralisée de la configuration avec validation Zod
@@ -231,10 +242,11 @@ LINEAR_API_KEY=xxx npx ts-node scripts/migrate-linear-statuses.ts
 
 ### Configuration OAuth (par projet)
 
-DevFlow utilise OAuth 2.0 pour se connecter à GitHub et Linear. Chaque projet peut avoir ses propres credentials OAuth.
+DevFlow utilise OAuth 2.0 pour se connecter à GitHub, Linear, Figma et Sentry. Chaque projet peut avoir ses propres credentials OAuth.
 
 **Documentation détaillée:**
 - `.docs/LINEAR_OAUTH_SETUP.md` - Guide setup Linear OAuth
+- `.docs/SENTRY_OAUTH_SETUP.md` - Guide setup Sentry OAuth
 - `.docs/OAUTH_MULTITENANT.md` - Architecture multi-tenant OAuth
 
 #### Étape 1: Enregistrer l'application OAuth
@@ -254,7 +266,8 @@ Content-Type: application/json
   "flowType": "authorization_code"
 }
 
-# Enregistrer une app GitHub OAuth (Device Flow)
+# Enregistrer une app GitHub OAuth (Authorization Code Flow)
+# Note: GitHub passe à Authorization Code Flow pour multi-tenant (v2.1.0)
 POST /api/v1/auth/apps/register
 Content-Type: application/json
 
@@ -263,9 +276,23 @@ Content-Type: application/json
   "provider": "GITHUB",
   "clientId": "your-github-client-id",
   "clientSecret": "your-github-client-secret",
-  "redirectUri": "urn:ietf:wg:oauth:2.0:oob",
-  "scopes": ["repo", "workflow", "read:user"],
-  "flowType": "device"
+  "redirectUri": "http://localhost:3000/api/v1/auth/github/callback",
+  "scopes": ["repo", "workflow", "read:user", "read:org"],
+  "flowType": "authorization_code"
+}
+
+# Enregistrer une app Sentry OAuth (Authorization Code Flow)
+POST /api/v1/auth/apps/register
+Content-Type: application/json
+
+{
+  "projectId": "your-project-id",
+  "provider": "SENTRY",
+  "clientId": "your-sentry-client-id",
+  "clientSecret": "your-sentry-client-secret",
+  "redirectUri": "http://localhost:3001/api/v1/auth/sentry/callback",
+  "scopes": ["org:read", "project:read", "project:write", "event:read", "member:read"],
+  "flowType": "authorization_code"
 }
 ```
 
@@ -282,19 +309,15 @@ Body: {"projectId": "your-project-id"}
 # 3. Callback automatique vers /api/v1/auth/linear/callback
 ```
 
-**GitHub (Device Flow):**
+**GitHub (Authorization Code Flow):**
 ```bash
-# 1. Initier le Device Flow
-POST /api/v1/auth/github/device/initiate
+# 1. Obtenir l'URL d'autorisation
+POST /api/v1/auth/github/authorize
 Body: {"projectId": "your-project-id"}
 
-# Response: { "userCode": "ABCD-1234", "verificationUri": "https://github.com/login/device" }
+# 2. L'utilisateur visite l'URL et autorise
 
-# 2. L'utilisateur visite l'URL et entre le code
-
-# 3. Poller pour obtenir les tokens
-POST /api/v1/auth/github/device/poll
-Body: {"deviceCode": "xxx", "projectId": "your-project-id"}
+# 3. Callback automatique vers /api/v1/auth/github/callback
 ```
 
 #### Étape 3: Vérifier la connexion
@@ -312,6 +335,103 @@ POST /api/v1/auth/linear/disconnect
 Body: {"projectId": "your-project-id"}
 ```
 
+## Tests d'intégration (v2.1.0)
+
+DevFlow inclut un système complet de tests pour valider les connexions OAuth et l'extraction de contexte de tous les providers.
+
+### Via la CLI (Recommandé)
+
+**Tester toutes les intégrations:**
+```bash
+devflow integrations:test <project-id>
+```
+
+**Tester une intégration spécifique:**
+```bash
+devflow integrations:test <project-id> --provider github
+devflow integrations:test <project-id> --provider linear
+devflow integrations:test <project-id> --provider figma
+devflow integrations:test <project-id> --provider sentry
+```
+
+**Résultat attendu:**
+```
+🧪 Testing Integration Connections
+
+Project: your-project-id
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✔ Testing GitHub integration...
+   Status: ✓ Connected
+   Test: Successfully fetched repository information
+   testRepo: facebook/react
+
+✔ Testing Linear integration...
+   Status: ✓ Connected
+   Test: Successfully queried Linear issues
+   issuesFound: 5
+
+📊 Test Summary
+   Total: 4
+   Passed: 2
+   Not Configured: 2
+```
+
+### Via l'API
+
+**Endpoint:** `POST /api/v1/integrations/test/:provider`
+
+```bash
+# Tester GitHub
+curl -X POST http://localhost:3000/api/v1/integrations/test/github \
+  -H "Content-Type: application/json" \
+  -d '{"projectId": "your-project-id"}'
+
+# Réponse:
+{
+  "provider": "GITHUB",
+  "status": "connected",
+  "testResult": "Successfully fetched repository information",
+  "details": {
+    "testRepo": "facebook/react",
+    "defaultBranch": "main"
+  }
+}
+```
+
+### Tests SDK (Développement)
+
+Pour les développeurs, des tests manuels sont disponibles dans `packages/sdk/src/__manual_tests__/`:
+
+```bash
+# Test global de toutes les intégrations
+DATABASE_URL="postgresql://..." \
+PROJECT_ID="your-project-id" \
+npx tsx src/__manual_tests__/test-all-integrations.ts
+
+# Tests individuels
+npx tsx src/__manual_tests__/test-github-integration.ts
+npx tsx src/__manual_tests__/test-linear-integration.ts
+npx tsx src/__manual_tests__/test-figma-integration.ts
+npx tsx src/__manual_tests__/test-sentry-integration.ts
+```
+
+### Tests E2E (Validation complète)
+
+Scripts de test end-to-end qui valident le système complet via la CLI:
+
+```bash
+# Test rapide des intégrations
+./tests/e2e/test-integrations-e2e.sh <project-id>
+
+# Setup complet interactif (création projet + OAuth + tests)
+./tests/e2e/test-full-project-setup.sh
+```
+
+**Documentation complète:**
+- `packages/sdk/src/__manual_tests__/README.md` - Tests SDK
+- `tests/e2e/README.md` - Tests E2E
+
 ## Commandes utiles
 - Installation : `pnpm install`
 - Infra locale : `docker-compose up -d`
@@ -322,20 +442,34 @@ Body: {"projectId": "your-project-id"}
 - DB : `pnpm db:migrate`
 
 ## Troubleshooting rapide
-- `OAuth not configured` → Connecter OAuth pour le projet via `/api/v1/auth/{provider}/device/initiate`
+- `OAuth not configured` → Connecter OAuth pour le projet via `devflow oauth:connect <project-id> <provider>` ou `POST /api/v1/auth/{provider}/authorize`
+- `OAuth connection inactive` → Tester avec `devflow integrations:test <project-id>` pour diagnostiquer
+- `Integration test failed` → Vérifier les logs: `docker-compose logs -f api` et reconnecter si nécessaire
 - `Database connection failed` → `docker-compose up -d postgres`
 - `Temporal not reachable` → `docker-compose up -d temporal`
 - `Redis not connected` → `docker-compose up -d redis`
 - Logs : `docker-compose logs -f api worker`
 
 ## Fichiers clés à consulter
-- `.docs/ARCHITECTURE.md` (architecture & NestJS boundaries - **LIRE EN PREMIER**)
-- `.docs/DOCUMENTATION.md` (documentation complète)
-- `.docs/LINEAR_OAUTH_SETUP.md` (guide setup Linear OAuth)
-- `.docs/OAUTH_MULTITENANT.md` (architecture multi-tenant OAuth)
-- `packages/worker/src/workflows/devflow.workflow.ts` (workflow principal)
-- `packages/sdk/src/linear/linear.client.ts` (Linear client)
-- `packages/sdk/src/agents/agent.interface.ts` (interface AI agents)
-- `packages/sdk/src/auth/` (OAuth services - token encryption, storage, refresh)
-- `packages/api/src/auth/` (OAuth HTTP endpoints)
-- `packages/api/prisma/schema.prisma` (schéma complet)
+
+### Documentation
+- `.docs/ARCHITECTURE.md` - Architecture & NestJS boundaries (**LIRE EN PREMIER**)
+- `.docs/DOCUMENTATION.md` - Documentation complète
+- `.docs/LINEAR_OAUTH_SETUP.md` - Guide setup Linear OAuth
+- `.docs/SENTRY_OAUTH_SETUP.md` - Guide setup Sentry OAuth (Nouveau v2.1.0)
+- `.docs/OAUTH_MULTITENANT.md` - Architecture multi-tenant OAuth
+
+### Code source
+- `packages/worker/src/workflows/devflow.workflow.ts` - Workflow principal
+- `packages/sdk/src/linear/linear.client.ts` - Linear client
+- `packages/sdk/src/agents/agent.interface.ts` - Interface AI agents
+- `packages/sdk/src/auth/` - OAuth services (token encryption, storage, refresh)
+- `packages/api/src/auth/` - OAuth HTTP endpoints
+- `packages/api/src/integrations/` - Integration controllers & services (Nouveau v2.1.0)
+- `packages/api/prisma/schema.prisma` - Schéma complet
+
+### Tests & validation
+- `packages/sdk/src/__manual_tests__/` - Tests SDK des intégrations (Nouveau v2.1.0)
+- `packages/sdk/src/__manual_tests__/README.md` - Guide des tests SDK
+- `tests/e2e/` - Scripts de tests E2E (Nouveau v2.1.0)
+- `tests/e2e/README.md` - Guide des tests E2E

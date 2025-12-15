@@ -99,6 +99,19 @@ export class TokenRefreshService {
       }
     }
 
+    // Check if connection has refresh token
+    // Some providers (like GitHub OAuth Apps) don't provide refresh tokens
+    // In that case, tokens don't expire but we need to ask the user to reconnect
+    if (!connection.refreshToken || !connection.encryptionIv) {
+      this.logger.warn(
+        `No refresh token for ${provider} on project ${projectId}. User needs to reconnect.`,
+      );
+
+      throw new Error(
+        `No refresh token available. Please reconnect your ${provider} account.`,
+      );
+    }
+
     // Refresh the token
     this.logger.log(
       `Refreshing access token for ${provider} on project ${projectId}`,
