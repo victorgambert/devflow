@@ -335,6 +335,60 @@ POST /api/v1/auth/linear/disconnect
 Body: {"projectId": "your-project-id"}
 ```
 
+## Configuration de l'Intégration Figma (v2.1.0)
+
+DevFlow extrait automatiquement le contexte design de Figma pendant le refinement avec analyse AI des screenshots.
+
+**Fonctionnalités:**
+- ✅ Métadonnées de fichier et commentaires de design
+- ✅ Screenshots de frames/composants
+- ✅ Analyse AI des screenshots avec Claude Sonnet 4 (configurable)
+- ✅ Validation des file keys avec messages d'erreur clairs
+- ✅ Gestion d'erreurs robuste (404, 401, 429)
+
+**Configuration Vision Analysis:**
+```bash
+# Activer/désactiver l'analyse AI des screenshots
+FIGMA_VISION_ENABLED=true                      # true (défaut) ou false
+
+# Choisir le modèle AI
+FIGMA_VISION_MODEL=anthropic/claude-sonnet-4   # claude-sonnet-4 (défaut), claude-3.5-sonnet, gpt-4-turbo
+
+# Limiter le nombre de screenshots analysés (contrôle des coûts)
+FIGMA_VISION_MAX_SCREENSHOTS=3                 # 1-10, défaut: 3
+
+# Timeout pour l'analyse par screenshot
+FIGMA_VISION_TIMEOUT=30000                     # millisecondes, défaut: 30s
+```
+
+**Quick Start:**
+```bash
+# 1. Connecter OAuth Figma
+devflow oauth:connect <project-id> figma
+
+# 2. Tester la connexion
+devflow integrations:test <project-id> --provider figma
+
+# 3. Ajouter l'URL Figma dans une issue Linear
+https://www.figma.com/file/<FILE_KEY>/Design?node-id=<NODE_ID>
+```
+
+**Format des File Keys:**
+- 20-30 caractères alphanumériques (avec - ou _)
+- Exemple valide: `TfJw2zsGB11mbievCt5c3n`
+- Trouvez la file key dans l'URL Figma entre `/file/` et `/`
+
+**Coûts et Performance:**
+| Configuration | Coût AI | Temps | Qualité |
+|---------------|---------|-------|---------|
+| Vision désactivée | $0 | 5s | ⭐⭐⭐ |
+| 1 screenshot (Sonnet 4) | $0.01-0.02 | 15s | ⭐⭐⭐⭐ |
+| 3 screenshots (Sonnet 4) | $0.03-0.06 | 30s | ⭐⭐⭐⭐⭐ |
+
+**Documentation complète:** `.docs/FIGMA_CONFIGURATION.md`
+
+---
+
 ## Tests d'intégration (v2.1.0)
 
 DevFlow inclut un système complet de tests pour valider les connexions OAuth et l'extraction de contexte de tous les providers.

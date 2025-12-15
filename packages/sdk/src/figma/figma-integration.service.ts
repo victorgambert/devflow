@@ -110,9 +110,7 @@ export class FigmaIntegrationService {
   async getUserInfo(projectId: string): Promise<any> {
     const token = await this.tokenResolver.getAccessToken(projectId, 'FIGMA');
     const client = createFigmaClient(token);
-    // FigmaClient doesn't have getUserInfo yet, but we can add it or call directly
-    // For now, we'll need to add this method to FigmaClient
-    throw new Error('getUserInfo not yet implemented in FigmaClient');
+    return await client.getUserInfo();
   }
 }
 

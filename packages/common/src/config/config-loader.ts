@@ -66,12 +66,22 @@ const OAuthConfigSchema = z.object({
   encryptionKey: z.string(), // Required for encrypting OAuth tokens
 });
 
+const FigmaConfigSchema = z.object({
+  vision: z.object({
+    enabled: z.boolean().default(true),
+    model: z.string().default('anthropic/claude-sonnet-4'),
+    maxScreenshots: z.number().default(3),
+    timeout: z.number().default(30000), // 30 seconds
+  }),
+});
+
 // Export types
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type LinearSystemConfig = z.infer<typeof LinearSystemConfigSchema>;
 export type AIConfig = z.infer<typeof AIConfigSchema>;
 export type VCSSystemConfig = z.infer<typeof VCSSystemConfigSchema>;
 export type OAuthConfig = z.infer<typeof OAuthConfigSchema>;
+export type FigmaConfig = z.infer<typeof FigmaConfigSchema>;
 
 // Unified config interface
 export interface DevFlowConfig {
@@ -80,6 +90,7 @@ export interface DevFlowConfig {
   ai: AIConfig;
   vcs: VCSSystemConfig;
   oauth: OAuthConfig;
+  figma: FigmaConfig;
 }
 
 /**
@@ -165,12 +176,22 @@ export function loadConfig(): DevFlowConfig {
     encryptionKey: process.env.OAUTH_ENCRYPTION_KEY,
   });
 
+  const figmaConfig = FigmaConfigSchema.parse({
+    vision: {
+      enabled: process.env.FIGMA_VISION_ENABLED !== 'false',
+      model: process.env.FIGMA_VISION_MODEL || 'anthropic/claude-sonnet-4',
+      maxScreenshots: parseInt(process.env.FIGMA_VISION_MAX_SCREENSHOTS || '3'),
+      timeout: parseInt(process.env.FIGMA_VISION_TIMEOUT || '30000'),
+    },
+  });
+
   return {
     app: appConfig,
     linear: linearConfig,
     ai: aiConfig,
     vcs: vcsConfig,
     oauth: oauthConfig,
+    figma: figmaConfig,
   };
 }
 

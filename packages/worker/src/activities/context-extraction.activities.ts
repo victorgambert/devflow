@@ -5,7 +5,7 @@
  * for use in the refinement workflow.
  */
 
-import { createLogger, type AgentImage } from '@devflow/common';
+import { createLogger, loadConfig } from '@devflow/common';
 import {
   createFigmaClient,
   createSentryClient,
@@ -117,6 +117,7 @@ export function hasAnyLink(links: ExternalContextLinks): boolean {
  */
 async function analyzeFigmaScreenshotWithVision(
   screenshot: FigmaScreenshot,
+  config: { model: string; timeout: number },
 ): Promise<string> {
   if (!screenshot.imageBase64) {
     return '';
@@ -125,13 +126,15 @@ async function analyzeFigmaScreenshotWithVision(
   logger.info('Analyzing Figma screenshot with vision', {
     nodeName: screenshot.nodeName,
     nodeId: screenshot.nodeId,
+    model: config.model,
+    timeout: config.timeout,
   });
 
   try {
     const agent = createCodeAgentDriver({
       provider: 'openrouter',
       apiKey: process.env.OPENROUTER_API_KEY || '',
-      model: 'anthropic/claude-sonnet-4', // Vision capable
+      model: config.model, // Use configured model instead of hard-coded
     });
 
     const response = await agent.generate({
@@ -188,9 +191,27 @@ async function extractFigmaContext(
   projectId: string,
   fileKey: string,
   nodeId?: string,
-  enableVision = true,
+  config?: {
+    enabled: boolean;
+    model: string;
+    maxScreenshots: number;
+    timeout: number;
+  },
 ): Promise<FigmaDesignContext> {
-  logger.info('Extracting Figma context', { projectId, fileKey, nodeId, enableVision });
+  // Fallback to default values if config not provided
+  const visionConfig = config || {
+    enabled: true,
+    model: 'anthropic/claude-sonnet-4',
+    maxScreenshots: 3,
+    timeout: 30000,
+  };
+
+  logger.info('Extracting Figma context', {
+    projectId,
+    fileKey,
+    nodeId,
+    visionEnabled: visionConfig.enabled,
+  });
 
   const token = await oauthResolver.resolveFigmaToken(projectId);
   const client = createFigmaClient(token);
@@ -198,19 +219,25 @@ async function extractFigmaContext(
   const context = await client.getDesignContext(fileKey, nodeId);
 
   // Analyze screenshots with vision if enabled and screenshots exist
-  if (enableVision && context.screenshots.length > 0) {
+  if (visionConfig.enabled && context.screenshots.length > 0) {
     logger.info('Analyzing screenshots with vision', {
-      count: context.screenshots.length,
+      count: Math.min(context.screenshots.length, visionConfig.maxScreenshots),
+      model: visionConfig.model,
     });
 
-    // Analyze each screenshot (limit to first 3 to avoid excessive API calls)
-    const screenshotsToAnalyze = context.screenshots.slice(0, 3);
+    // Use maxScreenshots from config
+    const screenshotsToAnalyze = context.screenshots.slice(0, visionConfig.maxScreenshots);
 
     for (const screenshot of screenshotsToAnalyze) {
       if (screenshot.imageBase64) {
-        screenshot.visionAnalysis = await analyzeFigmaScreenshotWithVision(screenshot);
+        screenshot.visionAnalysis = await analyzeFigmaScreenshotWithVision(screenshot, {
+          model: visionConfig.model,
+          timeout: visionConfig.timeout,
+        });
       }
     }
+  } else if (!visionConfig.enabled) {
+    logger.info('Vision analysis disabled by configuration');
   }
 
   logger.info('Figma context extracted', {
@@ -297,6 +324,9 @@ async function extractGitHubIssueContext(
 export async function extractExternalContext(
   input: ExtractContextInput,
 ): Promise<ExtractContextOutput> {
+  // Load configuration at the beginning
+  const config = loadConfig();
+
   logger.info('Extracting external context', {
     projectId: input.projectId,
     links: input.links,
@@ -314,6 +344,12 @@ export async function extractExternalContext(
         input.projectId,
         input.links.figmaFileKey,
         input.links.figmaNodeId,
+        {
+          enabled: config.figma.vision.enabled,
+          model: config.figma.vision.model,
+          maxScreenshots: config.figma.vision.maxScreenshots,
+          timeout: config.figma.vision.timeout,
+        },
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
