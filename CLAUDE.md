@@ -1,8 +1,8 @@
 # CLAUDE.md - DevFlow
 
-**Version:** 2.1.0
-**Mise à jour:** 15 décembre 2025
-**Statut:** Three-Phase Agile System + Integration Testing - Production Ready
+**Version:** 2.2.0
+**Mise à jour:** 19 décembre 2025
+**Statut:** Three-Phase Agile System + LLM Council + Integration Testing - Production Ready
 
 ## Rappel agents (Claude + Cursor)
 - Finir chaque tâche par une étape Documentation (code, infra, CI, scripts, data, tests).
@@ -114,6 +114,7 @@ devflow/
 - **LinearSetupService** : `ensureCustomFields(teamId)`, `validateSetup(teamId)`, `getDevFlowFieldValues(issueId)` - Setup automatique des custom fields DevFlow.
 - **LinearIntegrationService** : OAuth-based service - queryIssues, queryIssuesByStatus, getTask, getComments avec auto token refresh.
 - **AI** : AnthropicProvider, OpenAIProvider, OpenRouterProvider, Cursor (non implémenté).
+- **LLM Council** (Nouveau - v2.2.0): `CouncilService` - 3-stage deliberation system with peer ranking and chairman synthesis. See LLM Council section below.
 - **Codebase analysis** : `structure-analyzer.ts`, `dependency-analyzer.ts`, `code-similarity.service.ts`, `documentation-scanner.ts`.
 - **Gouvernance/Sécurité** : `policy.guard.ts`, `auto-merge.engine.ts`, `audit.logger.ts`, `security.scanner.ts`.
 - **Integration Services Pattern** (Nouveau - v2.1.0):
@@ -211,7 +212,12 @@ LINEAR_STATUS_PLAN_FAILED=Plan Failed
 # AI Providers
 OPENROUTER_API_KEY=sk-or-xxx
 OPENROUTER_MODEL=anthropic/claude-sonnet-4
-ENABLE_MULTI_LLM=false  # Set to 'true' to use multi-LLM (Claude, GPT-4, Gemini)
+
+# LLM Council (v2.2.0) - 3-stage deliberation with peer ranking
+ENABLE_COUNCIL=false  # Set to 'true' to enable council deliberation
+COUNCIL_MODELS=anthropic/claude-sonnet-4,openai/gpt-4o,google/gemini-2.0-flash-exp
+COUNCIL_CHAIRMAN_MODEL=anthropic/claude-sonnet-4
+COUNCIL_TIMEOUT=120000
 
 # Database
 DATABASE_URL=postgresql://devflow:changeme@localhost:5432/devflow
@@ -386,6 +392,107 @@ https://www.figma.com/file/<FILE_KEY>/Design?node-id=<NODE_ID>
 | 3 screenshots (Sonnet 4) | $0.03-0.06 | 30s | ⭐⭐⭐⭐⭐ |
 
 **Documentation complète:** `.docs/FIGMA_CONFIGURATION.md`
+
+---
+
+## LLM Council - Multi-Model Deliberation (v2.2.0)
+
+DevFlow supports a 3-stage LLM Council deliberation system that improves output quality through peer review and chairman synthesis.
+
+### How It Works
+
+```
+Stage 1: Collect Responses
+  └─ Query all council models in parallel
+
+Stage 2: Peer Rankings
+  └─ Anonymize responses (Response A, B, C...)
+  └─ Each model evaluates and ranks all responses
+  └─ Calculate aggregate rankings
+
+Stage 3: Chairman Synthesis
+  └─ Chairman receives all responses + rankings
+  └─ Synthesizes final answer combining best insights
+```
+
+### Configuration
+
+```bash
+# Enable council deliberation (replaces ENABLE_MULTI_LLM)
+ENABLE_COUNCIL=true
+
+# Council member models (comma-separated)
+COUNCIL_MODELS=anthropic/claude-sonnet-4,openai/gpt-4o,google/gemini-2.0-flash-exp
+
+# Chairman model for synthesis
+COUNCIL_CHAIRMAN_MODEL=anthropic/claude-sonnet-4
+
+# Timeout per request (ms)
+COUNCIL_TIMEOUT=120000
+```
+
+### Features
+
+- **Anonymized Peer Review**: Models evaluate responses labeled A, B, C to prevent bias
+- **Aggregate Rankings**: Calculate average position across all peer evaluations
+- **Chairman Synthesis**: Best-ranked insights combined into final output
+- **Linear Summary**: Council deliberation results appended to Linear issues
+
+### Linear Output Format
+
+When council mode is enabled, a summary is appended to each phase output:
+
+```markdown
+---
+
+## LLM Council Deliberation
+
+> This output was generated through a 3-stage council deliberation process.
+
+### Council Members
+- claude-sonnet-4
+- gpt-4o
+- gemini-2.0-flash-exp
+- **Chairman:** claude-sonnet-4
+
+### Peer Rankings
+
+| Rank | Model | Avg Position | Votes |
+|------|-------|--------------|-------|
+| 🥇 | claude-sonnet-4 | 1.33 | 3 |
+| 🥈 | gpt-4o | 1.67 | 3 |
+| 🥉 | gemini-2.0-flash-exp | 3.00 | 3 |
+
+**Agreement Level:** 🟢 HIGH
+
+**Top Ranked Model:** claude-sonnet-4
+
+### Synthesis
+Chairman (claude-sonnet-4) synthesized insights from 3 council members.
+```
+
+### Usage
+
+Council is used automatically in all three phases when `ENABLE_COUNCIL=true`:
+- Phase 1: Refinement
+- Phase 2: User Story
+- Phase 3: Technical Plan
+
+### Cost Considerations
+
+Council mode makes 3x API calls per phase (Stage 1) + 3x ranking calls (Stage 2) + 1x synthesis call (Stage 3) = **7 API calls per phase**.
+
+| Mode | API Calls/Phase | Cost | Quality |
+|------|----------------|------|---------|
+| Single Model | 1 | $ | ⭐⭐⭐ |
+| Council (3 models) | 7 | $$$$ | ⭐⭐⭐⭐⭐ |
+
+### Key Files
+
+- `packages/sdk/src/agents/council/council.service.ts` - Main service
+- `packages/sdk/src/agents/council/ranking-parser.ts` - Ranking extraction
+- `packages/sdk/src/agents/council/prompts/` - Stage 2 & 3 prompts
+- `packages/common/src/types/council.types.ts` - TypeScript interfaces
 
 ---
 

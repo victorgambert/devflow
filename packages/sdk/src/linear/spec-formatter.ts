@@ -7,6 +7,7 @@ import {
   RefinementOutput,
   UserStoryGenerationOutput,
   TechnicalPlanGenerationOutput,
+  CouncilSummary,
 } from '@devflow/common';
 
 /**
@@ -385,6 +386,65 @@ export function formatTechnicalPlanAsMarkdown(plan: TechnicalPlanGenerationOutpu
     }
     sections.push('');
   }
+
+  return sections.join('\n');
+}
+
+// ============================================
+// LLM Council Formatter
+// ============================================
+
+/**
+ * Format council deliberation summary as markdown for Linear
+ * Appended to phase outputs when council mode is enabled
+ */
+export function formatCouncilSummaryAsMarkdown(summary: CouncilSummary): string {
+  const sections: string[] = [];
+
+  sections.push('---');
+  sections.push('');
+  sections.push('## LLM Council Deliberation');
+  sections.push('');
+  sections.push('> This output was generated through a 3-stage council deliberation process.');
+  sections.push('');
+
+  // Council composition
+  sections.push('### Council Members');
+  sections.push('');
+  summary.councilModels.forEach((model) => {
+    const shortName = model.split('/')[1] || model;
+    sections.push(`- ${shortName}`);
+  });
+  const chairmanShort = summary.chairmanModel.split('/')[1] || summary.chairmanModel;
+  sections.push(`- **Chairman:** ${chairmanShort}`);
+  sections.push('');
+
+  // Peer rankings table
+  sections.push('### Peer Rankings');
+  sections.push('');
+  sections.push(summary.rankingSummary);
+  sections.push('');
+
+  // Agreement level with emoji
+  const agreementEmoji =
+    summary.agreementLevel === 'high'
+      ? '🟢'
+      : summary.agreementLevel === 'medium'
+        ? '🟡'
+        : '🔴';
+  sections.push(`**Agreement Level:** ${agreementEmoji} ${summary.agreementLevel.toUpperCase()}`);
+  sections.push('');
+
+  // Top ranked model
+  const topRankedShort = summary.topRankedModel.split('/')[1] || summary.topRankedModel;
+  sections.push(`**Top Ranked Model:** ${topRankedShort}`);
+  sections.push('');
+
+  // Synthesis note
+  sections.push('### Synthesis');
+  sections.push('');
+  sections.push(summary.synthesisExplanation);
+  sections.push('');
 
   return sections.join('\n');
 }

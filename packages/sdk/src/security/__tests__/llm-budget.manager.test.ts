@@ -32,12 +32,20 @@ describe('LLMBudgetManager', () => {
     });
 
     it('should block when daily quota would be exceeded', async () => {
-      // Record large usage
+      // Create a manager with high rate limit to test token quota
+      const highRateLimitManager = new LLMBudgetManager({
+        maxTokensPerCall: 50000,
+        maxTokensPerDay: 500000,
+        maxCostPerDay: 10.0,
+        maxCallsPerMinute: 100,  // High limit to avoid rate limiting
+      });
+
+      // Record large usage to exceed daily token quota
       for (let i = 0; i < 10; i++) {
-        budgetManager.recordUsage('anthropic', 'claude-3-5-sonnet-20241022', 25000, 25000);
+        highRateLimitManager.recordUsage('anthropic', 'claude-3-5-sonnet-20241022', 25000, 25000);
       }
 
-      const result = await budgetManager.checkQuota('anthropic', 'claude-3-5-sonnet-20241022', 25000);
+      const result = await highRateLimitManager.checkQuota('anthropic', 'claude-3-5-sonnet-20241022', 25000);
 
       expect(result.allowed).toBe(false);
       expect(result.reason).toContain('token quota');
@@ -55,7 +63,8 @@ describe('LLMBudgetManager', () => {
     });
 
     it('should calculate costs correctly', () => {
-      budgetManager.recordUsage('claude-3-5-sonnet-20241022', 'anthropic', 1000000, 1000000);
+      // Arguments: provider, model, inputTokens, outputTokens
+      budgetManager.recordUsage('anthropic', 'claude-3-5-sonnet-20241022', 1000000, 1000000);
 
       const summary = budgetManager.getSummary();
       // 1M input tokens * $3/1M + 1M output tokens * $15/1M = $18

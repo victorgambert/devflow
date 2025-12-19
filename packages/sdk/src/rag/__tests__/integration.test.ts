@@ -22,21 +22,31 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Skip tests if required env vars are not set
+// Skip tests if required env vars are not set or RUN_INTEGRATION_TESTS is not set
 const skipIfMissingEnv = () => {
+  // Require explicit opt-in for integration tests
+  if (process.env.RUN_INTEGRATION_TESTS !== 'true') {
+    console.log('⏭️  Skipping integration tests: RUN_INTEGRATION_TESTS not set to true');
+    return true;
+  }
   if (!process.env.OPENROUTER_API_KEY || !process.env.GITHUB_TOKEN) {
     console.log('⏭️  Skipping integration tests: API keys not set');
+    return true;
+  }
+  if (!process.env.DATABASE_URL) {
+    console.log('⏭️  Skipping integration tests: DATABASE_URL not set');
     return true;
   }
   return false;
 };
 
-describe('RAG Integration Tests', () => {
-  if (skipIfMissingEnv()) {
-    it.skip('skipped - missing environment variables', () => {});
-    return;
-  }
+// Skip the entire suite if env vars not set
+const shouldSkip = skipIfMissingEnv();
 
+// Use conditional describe to skip entire test suite
+const describeOrSkip = shouldSkip ? describe.skip : describe;
+
+describeOrSkip('RAG Integration Tests', () => {
   const testProjectId = 'test-rag-integration';
   const testOwner = 'victorgambert';
   const testRepo = 'indy-promocode';
@@ -52,7 +62,7 @@ describe('RAG Integration Tests', () => {
         name: 'Test RAG Integration',
         description: 'Integration test project',
         repository: `https://github.com/${testOwner}/${testRepo}`,
-        status: 'ACTIVE',
+        config: {},  // Required field
         createdAt: new Date(),
         updatedAt: new Date(),
       },

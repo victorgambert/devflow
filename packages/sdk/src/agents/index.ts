@@ -6,6 +6,7 @@ export * from '@/agents/agent.interface';
 export * from '@/agents/anthropic.provider';
 export * from '@/agents/openrouter.provider';
 export * from '@/agents/prompts/prompt-loader';
+export * from '@/agents/council';
 
 // Agent Factory
 import { CodeAgentDriver, AgentConfig } from '@/agents/agent.interface';

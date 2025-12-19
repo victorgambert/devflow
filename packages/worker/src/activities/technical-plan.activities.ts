@@ -12,12 +12,14 @@ import type {
   TechnicalPlanGenerationInput,
   TechnicalPlanGenerationOutput,
   UserStoryGenerationOutput,
+  CouncilSummary,
 } from '@devflow/common';
 import {
   createCodeAgentDriver,
   extractSpecGenerationContext,
   formatContextForAI,
   loadPrompts,
+  createCouncilService,
 } from '@devflow/sdk';
 import type { CodebaseContext } from '@devflow/sdk';
 import { analyzeRepositoryContext } from '@/activities/codebase.activities';
@@ -51,22 +53,8 @@ export interface GenerateTechnicalPlanOutput {
     filesAnalyzed: string[];
     usingRAG: boolean;
   };
-  multiLLM?: {
-    models: Array<{
-      model: string;
-      score: number;
-    }>;
-    bestModel: string;
-    detailedExplanation: string;
-  };
+  council?: CouncilSummary;
 }
-
-const MULTI_LLM_MODELS = [
-  'anthropic/claude-sonnet-4',
-  'openai/gpt-4o',
-  'google/gemini-2.0-flash-exp',
-  'perplexity/sonar-pro',
-];
 
 /**
  * Fetch best practices for a given task using Perplexity
@@ -262,61 +250,41 @@ export async function generateTechnicalPlan(
       bestPractices: input.bestPractices?.bestPractices || 'No best practices available',
     });
 
-    // Step 4: Generate with AI (multi-LLM or single model)
-    const useMultiLLM = process.env.ENABLE_MULTI_LLM === 'true';
+    // Step 4: Generate with AI (council or single model)
+    const useCouncil = process.env.ENABLE_COUNCIL === 'true';
 
     let plan: TechnicalPlanGenerationOutput;
-    let multiLLMResults: any = undefined;
+    let councilSummary: CouncilSummary | undefined = undefined;
 
-    if (useMultiLLM) {
-      logger.info('Using multi-LLM generation for technical plan');
+    if (useCouncil) {
+      logger.info('Using LLM Council for technical plan');
 
-      const results = await Promise.all(
-        MULTI_LLM_MODELS.map(async (model) => {
-          try {
-            const agent = createCodeAgentDriver({
-              provider: 'openrouter',
-              apiKey: process.env.OPENROUTER_API_KEY || '',
-              model,
-            });
+      const councilModels = process.env.COUNCIL_MODELS
+        ? process.env.COUNCIL_MODELS.split(',').map((m) => m.trim())
+        : ['anthropic/claude-sonnet-4', 'openai/gpt-4o', 'google/gemini-2.0-flash-exp'];
 
-            const response = await agent.generate(prompts);
-            const parsedPlan = parseTechnicalPlanResponse(response.content);
-            const score = scoreTechnicalPlan(parsedPlan, input.userStory);
-
-            logger.info(`Technical plan generated with ${model}`, { score });
-
-            return {
-              model,
-              plan: parsedPlan,
-              score,
-            };
-          } catch (error) {
-            logger.error(
-              `Failed to generate technical plan with ${model}`,
-              error
-            );
-            throw error;
-          }
-        })
+      const council = createCouncilService(
+        process.env.OPENROUTER_API_KEY || '',
+        {
+          enabled: true,
+          models: councilModels,
+          chairmanModel: process.env.COUNCIL_CHAIRMAN_MODEL || 'anthropic/claude-sonnet-4',
+          timeout: parseInt(process.env.COUNCIL_TIMEOUT || '120000'),
+        }
       );
 
-      // Select best result
-      const best = results.reduce((best, curr) =>
-        curr.score > best.score ? curr : best
+      const result = await council.deliberate<TechnicalPlanGenerationOutput>(
+        prompts,
+        parseTechnicalPlanResponse
       );
 
-      logger.info('Multi-LLM technical plan generation complete', {
-        bestModel: best.model,
-        bestScore: best.score,
+      logger.info('Council technical plan generation complete', {
+        topRankedModel: result.summary.topRankedModel,
+        agreementLevel: result.summary.agreementLevel,
       });
 
-      plan = best.plan;
-      multiLLMResults = {
-        models: results.map((r) => ({ model: r.model, score: r.score })),
-        bestModel: best.model,
-        detailedExplanation: formatMultiLLMExplanation(results, input.userStory),
-      };
+      plan = result.finalOutput;
+      councilSummary = result.summary;
     } else {
       // Single model generation
       logger.info('Using single model generation for technical plan');
@@ -343,7 +311,7 @@ export async function generateTechnicalPlan(
         filesAnalyzed: codebaseContext.similarCode?.map((c) => c.path) || [],
         usingRAG,
       },
-      multiLLM: multiLLMResults,
+      council: councilSummary,
     };
   } catch (error) {
     logger.error('Failed to generate technical plan', error);
@@ -382,104 +350,3 @@ function parseTechnicalPlanResponse(
   }
 }
 
-/**
- * Score technical plan quality (0-100)
- */
-function scoreTechnicalPlan(
-  plan: TechnicalPlanGenerationOutput,
-  userStory: UserStoryGenerationOutput
-): number {
-  let score = 0;
-
-  // Architecture decisions (25 points)
-  if (plan.architecture.length >= 3) {
-    score += 25;
-  } else if (plan.architecture.length >= 2) {
-    score += 18;
-  } else if (plan.architecture.length >= 1) {
-    score += 12;
-  }
-
-  // Implementation steps (25 points)
-  if (plan.implementationSteps.length >= 5) {
-    score += 25;
-  } else if (plan.implementationSteps.length >= 3) {
-    score += 18;
-  } else if (plan.implementationSteps.length >= 1) {
-    score += 12;
-  }
-
-  // Testing strategy (20 points)
-  if (plan.testingStrategy && plan.testingStrategy.length > 100) {
-    score += 20;
-  } else if (plan.testingStrategy && plan.testingStrategy.length > 50) {
-    score += 15;
-  } else if (plan.testingStrategy) {
-    score += 10;
-  }
-
-  // Risks identified (15 points)
-  if (plan.risks.length >= 3) {
-    score += 15;
-  } else if (plan.risks.length >= 2) {
-    score += 10;
-  } else if (plan.risks.length >= 1) {
-    score += 5;
-  }
-
-  // Files affected specified (10 points - bonus for specificity)
-  if (plan.filesAffected && plan.filesAffected.length > 0) {
-    score += 10;
-  }
-
-  // Time estimation present (5 points)
-  if (plan.estimatedTime && plan.estimatedTime > 0) {
-    score += 5;
-  }
-
-  return score;
-}
-
-/**
- * Format multi-LLM comparison explanation
- */
-function formatMultiLLMExplanation(
-  results: Array<{
-    model: string;
-    plan: TechnicalPlanGenerationOutput;
-    score: number;
-  }>,
-  userStory: UserStoryGenerationOutput
-): string {
-  const sortedResults = [...results].sort((a, b) => b.score - a.score);
-
-  let explanation = `## Multi-LLM Technical Plan Analysis\n\n`;
-  explanation += `Generated technical plans from ${results.length} AI models and selected the best result.\n\n`;
-
-  explanation += `### Model Scores\n\n`;
-  sortedResults.forEach((result, index) => {
-    const emoji = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
-    explanation += `${emoji} **${result.model}**: ${result.score}/100\n`;
-    explanation += `   - Architecture decisions: ${result.plan.architecture.length}\n`;
-    explanation += `   - Implementation steps: ${result.plan.implementationSteps.length}\n`;
-    explanation += `   - Files affected: ${result.plan.filesAffected?.length || 0}\n`;
-  });
-
-  explanation += `\n### Selection Criteria\n\n`;
-  explanation += `- Architecture decisions quality (25 points)\n`;
-  explanation += `- Implementation steps detail (25 points)\n`;
-  explanation += `- Testing strategy comprehensiveness (20 points)\n`;
-  explanation += `- Risk analysis thoroughness (15 points)\n`;
-  explanation += `- Specific files identified (10 points)\n`;
-  explanation += `- Time estimation provided (5 points)\n\n`;
-
-  const best = sortedResults[0];
-  explanation += `**Selected model:** ${best.model} achieved the highest score with `;
-  explanation += `${best.plan.implementationSteps.length} implementation steps`;
-  if (best.plan.filesAffected && best.plan.filesAffected.length > 0) {
-    explanation += ` referencing ${best.plan.filesAffected.length} specific files`;
-  }
-  explanation += `.`;
-
-  return explanation;
-}

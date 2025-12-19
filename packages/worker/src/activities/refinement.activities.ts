@@ -6,8 +6,8 @@
  */
 
 import { createLogger } from '@devflow/common';
-import type { RefinementOutput, AgentImage } from '@devflow/common';
-import { createCodeAgentDriver, loadPrompts } from '@devflow/sdk';
+import type { RefinementOutput, AgentImage, CouncilSummary } from '@devflow/common';
+import { createCodeAgentDriver, loadPrompts, createCouncilService } from '@devflow/sdk';
 import { detectTaskType } from './helpers/task-type-detector';
 import {
   extractExternalContext,
@@ -32,21 +32,8 @@ export interface GenerateRefinementInput {
 
 export interface GenerateRefinementOutput {
   refinement: RefinementOutput;
-  multiLLM?: {
-    models: Array<{
-      model: string;
-      score: number;
-    }>;
-    bestModel: string;
-    detailedExplanation: string;
-  };
+  council?: CouncilSummary;
 }
-
-const MULTI_LLM_MODELS = [
-  'anthropic/claude-sonnet-4',
-  'openai/gpt-4o',
-  'google/gemini-2.0-flash-exp',
-];
 
 /**
  * Generate refinement for a task using AI
@@ -110,62 +97,45 @@ export async function generateRefinement(
     });
 
     // Step 3: Generate refinement with AI
-    const useMultiLLM = process.env.ENABLE_MULTI_LLM === 'true';
+    const useCouncil = process.env.ENABLE_COUNCIL === 'true';
 
-    if (useMultiLLM) {
-      logger.info('Using multi-LLM generation for refinement');
+    if (useCouncil) {
+      logger.info('Using LLM Council for refinement');
 
-      const results = await Promise.all(
-        MULTI_LLM_MODELS.map(async (model) => {
-          try {
-            const agent = createCodeAgentDriver({
-              provider: 'openrouter',
-              apiKey: process.env.OPENROUTER_API_KEY || '',
-              model,
-            });
+      const councilModels = process.env.COUNCIL_MODELS
+        ? process.env.COUNCIL_MODELS.split(',').map((m) => m.trim())
+        : ['anthropic/claude-sonnet-4', 'openai/gpt-4o', 'google/gemini-2.0-flash-exp'];
 
-            const response = await agent.generate({
-              ...prompts,
-              images: figmaImages.length > 0 ? figmaImages : undefined,
-            });
-            const parsed = parseRefinementResponse(response.content);
-            const score = scoreRefinement(parsed);
-
-            logger.info(`Refinement generated with ${model}`, { score, hasImages: figmaImages.length > 0 });
-
-            return {
-              model,
-              refinement: parsed,
-              score,
-            };
-          } catch (error) {
-            logger.error(`Failed to generate refinement with ${model}`, error);
-            throw error;
-          }
-        })
+      const council = createCouncilService(
+        process.env.OPENROUTER_API_KEY || '',
+        {
+          enabled: true,
+          models: councilModels,
+          chairmanModel: process.env.COUNCIL_CHAIRMAN_MODEL || 'anthropic/claude-sonnet-4',
+          timeout: parseInt(process.env.COUNCIL_TIMEOUT || '120000'),
+        }
       );
 
-      // Select best result
-      const best = results.reduce((best, curr) =>
-        curr.score > best.score ? curr : best
+      const result = await council.deliberate<Omit<RefinementOutput, 'taskType'>>(
+        {
+          ...prompts,
+          images: figmaImages.length > 0 ? figmaImages : undefined,
+        },
+        parseRefinementResponse
       );
 
-      logger.info('Multi-LLM refinement complete', {
-        bestModel: best.model,
-        bestScore: best.score,
-        allScores: results.map((r) => ({ model: r.model, score: r.score })),
+      logger.info('Council refinement complete', {
+        topRankedModel: result.summary.topRankedModel,
+        agreementLevel: result.summary.agreementLevel,
+        councilModels: result.summary.councilModels,
       });
 
       return {
         refinement: {
-          ...best.refinement,
+          ...result.finalOutput,
           taskType,
         },
-        multiLLM: {
-          models: results.map((r) => ({ model: r.model, score: r.score })),
-          bestModel: best.model,
-          detailedExplanation: formatMultiLLMExplanation(results),
-        },
+        council: result.summary,
       };
     } else {
       // Single model generation
@@ -231,95 +201,3 @@ function parseRefinementResponse(
   }
 }
 
-/**
- * Score refinement quality (0-100)
- */
-function scoreRefinement(
-  refinement: Omit<RefinementOutput, 'taskType'>
-): number {
-  let score = 0;
-
-  // Business context (30 points)
-  if (refinement.businessContext && refinement.businessContext.length > 50) {
-    score += 30;
-  } else if (refinement.businessContext) {
-    score += 15;
-  }
-
-  // Objectives (20 points)
-  if (refinement.objectives.length >= 3) {
-    score += 20;
-  } else if (refinement.objectives.length >= 2) {
-    score += 15;
-  } else if (refinement.objectives.length >= 1) {
-    score += 10;
-  }
-
-  // Preliminary acceptance criteria (20 points)
-  if (refinement.preliminaryAcceptanceCriteria.length >= 3) {
-    score += 20;
-  } else if (refinement.preliminaryAcceptanceCriteria.length >= 2) {
-    score += 15;
-  } else if (refinement.preliminaryAcceptanceCriteria.length >= 1) {
-    score += 10;
-  }
-
-  // Complexity estimate (15 points)
-  if (refinement.complexityEstimate) {
-    score += 15;
-  }
-
-  // Questions for PO (10 points - bonus for identifying ambiguities)
-  if (
-    refinement.questionsForPO &&
-    refinement.questionsForPO.length > 0
-  ) {
-    score += 10;
-  }
-
-  // Suggested split (5 points - bonus for identifying large stories)
-  if (refinement.suggestedSplit) {
-    score += 5;
-  }
-
-  return score;
-}
-
-/**
- * Format multi-LLM comparison explanation
- */
-function formatMultiLLMExplanation(
-  results: Array<{
-    model: string;
-    refinement: Omit<RefinementOutput, 'taskType'>;
-    score: number;
-  }>
-): string {
-  const sortedResults = [...results].sort((a, b) => b.score - a.score);
-
-  let explanation = `## Multi-LLM Refinement Analysis\n\n`;
-  explanation += `Generated refinements from ${results.length} AI models and selected the best result.\n\n`;
-
-  explanation += `### Model Scores\n\n`;
-  sortedResults.forEach((result, index) => {
-    const emoji = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
-    explanation += `${emoji} **${result.model}**: ${result.score}/100\n`;
-  });
-
-  explanation += `\n### Selection Criteria\n\n`;
-  explanation += `- Business context clarity and depth (30 points)\n`;
-  explanation += `- Number and quality of objectives (20 points)\n`;
-  explanation += `- Preliminary acceptance criteria (20 points)\n`;
-  explanation += `- Complexity estimation (15 points)\n`;
-  explanation += `- Questions for Product Owner (10 points bonus)\n`;
-  explanation += `- Story split suggestions (5 points bonus)\n\n`;
-
-  const best = sortedResults[0];
-  explanation += `**Selected model:** ${best.model} achieved the highest score with comprehensive business context`;
-  if (best.refinement.questionsForPO?.length) {
-    explanation += ` and ${best.refinement.questionsForPO.length} clarifying question(s) for the Product Owner`;
-  }
-  explanation += `.`;
-
-  return explanation;
-}

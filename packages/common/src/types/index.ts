@@ -7,4 +7,5 @@ export * from '@/types/agent.types';
 export * from '@/types/ci.types';
 export * from '@/types/notification.types';
 export * from '@/types/rag-metrics.types';
+export * from '@/types/council.types';
 

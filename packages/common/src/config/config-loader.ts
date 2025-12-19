@@ -75,6 +75,17 @@ const FigmaConfigSchema = z.object({
   }),
 });
 
+const CouncilConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  models: z.array(z.string()).default([
+    'anthropic/claude-sonnet-4',
+    'openai/gpt-4o',
+    'google/gemini-2.0-flash-exp',
+  ]),
+  chairmanModel: z.string().default('anthropic/claude-sonnet-4'),
+  timeout: z.number().default(120000), // 2 minutes per request
+});
+
 // Export types
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type LinearSystemConfig = z.infer<typeof LinearSystemConfigSchema>;
@@ -82,6 +93,7 @@ export type AIConfig = z.infer<typeof AIConfigSchema>;
 export type VCSSystemConfig = z.infer<typeof VCSSystemConfigSchema>;
 export type OAuthConfig = z.infer<typeof OAuthConfigSchema>;
 export type FigmaConfig = z.infer<typeof FigmaConfigSchema>;
+export type CouncilConfigLoader = z.infer<typeof CouncilConfigSchema>;
 
 // Unified config interface
 export interface DevFlowConfig {
@@ -91,6 +103,7 @@ export interface DevFlowConfig {
   vcs: VCSSystemConfig;
   oauth: OAuthConfig;
   figma: FigmaConfig;
+  council: CouncilConfigLoader;
 }
 
 /**
@@ -185,6 +198,17 @@ export function loadConfig(): DevFlowConfig {
     },
   });
 
+  const councilConfig = CouncilConfigSchema.parse({
+    enabled: process.env.ENABLE_COUNCIL === 'true',
+    models: process.env.COUNCIL_MODELS
+      ? process.env.COUNCIL_MODELS.split(',').map((m) => m.trim())
+      : undefined,
+    chairmanModel: process.env.COUNCIL_CHAIRMAN_MODEL,
+    timeout: process.env.COUNCIL_TIMEOUT
+      ? parseInt(process.env.COUNCIL_TIMEOUT)
+      : undefined,
+  });
+
   return {
     app: appConfig,
     linear: linearConfig,
@@ -192,6 +216,7 @@ export function loadConfig(): DevFlowConfig {
     vcs: vcsConfig,
     oauth: oauthConfig,
     figma: figmaConfig,
+    council: councilConfig,
   };
 }
 
