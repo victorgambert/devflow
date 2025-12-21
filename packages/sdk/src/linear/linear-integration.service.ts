@@ -83,7 +83,7 @@ export class LinearIntegrationService {
     projectId: string,
     issueId: string,
     body: string,
-  ): Promise<void> {
+  ): Promise<string> {
     const token = await this.tokenResolver.getAccessToken(projectId, 'LINEAR');
     const client = createLinearClient(token);
     return await client.addComment(issueId, body);

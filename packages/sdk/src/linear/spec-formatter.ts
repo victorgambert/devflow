@@ -397,54 +397,572 @@ export function formatTechnicalPlanAsMarkdown(plan: TechnicalPlanGenerationOutpu
 /**
  * Format council deliberation summary as markdown for Linear
  * Appended to phase outputs when council mode is enabled
+ * Uses blockquote styling for visual distinction
  */
 export function formatCouncilSummaryAsMarkdown(summary: CouncilSummary): string {
   const sections: string[] = [];
 
+  // Visual separator and header
+  sections.push('');
   sections.push('---');
   sections.push('');
-  sections.push('## LLM Council Deliberation');
-  sections.push('');
-  sections.push('> This output was generated through a 3-stage council deliberation process.');
+  sections.push('### 🧠 LLM Council Deliberation');
   sections.push('');
 
-  // Council composition
-  sections.push('### Council Members');
+  // Blockquote box for the council info
+  sections.push('> **Multi-Model Analysis**');
+  sections.push('> ');
+  sections.push('> This output was synthesized through a 3-stage deliberation process:');
+  sections.push('> 1. Parallel generation from multiple LLMs');
+  sections.push('> 2. Anonymized peer ranking (each model ranks others)');
+  sections.push('> 3. Chairman synthesis of top-ranked insights');
   sections.push('');
-  summary.councilModels.forEach((model) => {
-    const shortName = model.split('/')[1] || model;
-    sections.push(`- ${shortName}`);
-  });
+
+  // Council composition in a compact format
+  const modelNames = summary.councilModels.map(m => m.split('/')[1] || m);
   const chairmanShort = summary.chairmanModel.split('/')[1] || summary.chairmanModel;
-  sections.push(`- **Chairman:** ${chairmanShort}`);
+  sections.push(`**Council:** ${modelNames.join(', ')} | **Chairman:** ${chairmanShort}`);
   sections.push('');
 
-  // Peer rankings table
-  sections.push('### Peer Rankings');
+  // Peer rankings - ensure it's displayed prominently
+  sections.push('#### Peer Rankings');
   sections.push('');
   sections.push(summary.rankingSummary);
   sections.push('');
 
-  // Agreement level with emoji
+  // Agreement and top model in a summary line
   const agreementEmoji =
     summary.agreementLevel === 'high'
-      ? '🟢'
+      ? '🟢 HIGH'
       : summary.agreementLevel === 'medium'
-        ? '🟡'
-        : '🔴';
-  sections.push(`**Agreement Level:** ${agreementEmoji} ${summary.agreementLevel.toUpperCase()}`);
-  sections.push('');
-
-  // Top ranked model
+        ? '🟡 MEDIUM'
+        : '🔴 LOW';
   const topRankedShort = summary.topRankedModel.split('/')[1] || summary.topRankedModel;
-  sections.push(`**Top Ranked Model:** ${topRankedShort}`);
+
+  sections.push(`**Agreement:** ${agreementEmoji} | **Top Ranked:** ${topRankedShort}`);
   sections.push('');
 
-  // Synthesis note
-  sections.push('### Synthesis');
+  // Synthesis explanation in blockquote
+  sections.push('#### Synthesis Notes');
   sections.push('');
-  sections.push(summary.synthesisExplanation);
+  sections.push(`> ${summary.synthesisExplanation}`);
   sections.push('');
+
+  return sections.join('\n');
+}
+
+// ============================================
+// DevFlow Master Description Structure
+// ============================================
+
+/**
+ * Marker used to identify DevFlow-generated content in Linear descriptions
+ */
+const DEVFLOW_MARKER = '# DevFlow Analysis';
+
+/**
+ * Phase section markers for parsing
+ * Note: Linear's >>> collapsible syntax is NOT supported via API
+ * Using standard markdown headers with visual separators instead
+ */
+const PHASE_MARKERS = {
+  refinement: {
+    start: '## 1️⃣ Phase 1: Backlog Refinement',
+    end: '---',
+  },
+  userStory: {
+    start: '## 2️⃣ Phase 2: User Story',
+    end: '---',
+  },
+  technicalPlan: {
+    start: '## 3️⃣ Phase 3: Technical Plan',
+    end: '---',
+  },
+};
+
+/**
+ * Parsed DevFlow description structure
+ */
+export interface ParsedDevFlowDescription {
+  originalDescription: string;
+  hasRefinement: boolean;
+  hasUserStory: boolean;
+  hasTechnicalPlan: boolean;
+  refinementContent?: string;
+  userStoryContent?: string;
+  technicalPlanContent?: string;
+}
+
+/**
+ * Input parts for building a DevFlow description
+ */
+export interface DevFlowDescriptionParts {
+  originalDescription: string;
+  refinement?: {
+    content: string;
+    councilSummary?: CouncilSummary;
+  };
+  userStory?: {
+    content: string;
+    councilSummary?: CouncilSummary;
+  };
+  technicalPlan?: {
+    content: string;
+    councilSummary?: CouncilSummary;
+    contextUsed?: {
+      language: string;
+      framework?: string;
+      dependencies: number;
+      conventions: number;
+      filesAnalyzed: string[];
+      usingRAG: boolean;
+    };
+    bestPractices?: {
+      bestPractices: string;
+      perplexityModel: string;
+    };
+  };
+}
+
+/**
+ * Parse an existing Linear description to extract DevFlow content
+ * Used to preserve existing phases when adding new ones
+ */
+export function parseDevFlowDescription(description: string): ParsedDevFlowDescription {
+  // Check if description has DevFlow content
+  const devflowIndex = description.indexOf(DEVFLOW_MARKER);
+
+  if (devflowIndex === -1) {
+    // No DevFlow content yet - entire description is original
+    return {
+      originalDescription: description.trim(),
+      hasRefinement: false,
+      hasUserStory: false,
+      hasTechnicalPlan: false,
+    };
+  }
+
+  // Extract original description (before the divider and DevFlow marker)
+  // Look for "___" or "---" before the marker
+  let originalDescription = description.substring(0, devflowIndex);
+  originalDescription = originalDescription.replace(/\n*[_-]{3,}\n*$/, '').trim();
+
+  // Extract phase contents using regex
+  const refinementMatch = extractPhaseContent(description, PHASE_MARKERS.refinement);
+  const userStoryMatch = extractPhaseContent(description, PHASE_MARKERS.userStory);
+  const technicalPlanMatch = extractPhaseContent(description, PHASE_MARKERS.technicalPlan);
+
+  return {
+    originalDescription,
+    hasRefinement: !!refinementMatch,
+    hasUserStory: !!userStoryMatch,
+    hasTechnicalPlan: !!technicalPlanMatch,
+    refinementContent: refinementMatch,
+    userStoryContent: userStoryMatch,
+    technicalPlanContent: technicalPlanMatch,
+  };
+}
+
+/**
+ * Extract content between phase markers
+ * Looks for content between the start header and either:
+ * - The next phase header (## 1️⃣, ## 2️⃣, ## 3️⃣)
+ * - A horizontal rule followed by another section
+ * - End of content
+ */
+function extractPhaseContent(
+  description: string,
+  markers: { start: string; end: string }
+): string | undefined {
+  const startIndex = description.indexOf(markers.start);
+  if (startIndex === -1) return undefined;
+
+  // Find the content start (after the marker line)
+  const contentStart = startIndex + markers.start.length;
+  const afterStart = description.substring(contentStart);
+
+  // Find the end: next phase header or end of DevFlow content
+  // Look for next "## 1️⃣", "## 2️⃣", "## 3️⃣" or end of string
+  const nextPhaseMatch = afterStart.match(/\n## [123]️⃣ Phase/);
+
+  let content: string;
+  if (nextPhaseMatch && nextPhaseMatch.index !== undefined) {
+    content = afterStart.substring(0, nextPhaseMatch.index);
+  } else {
+    content = afterStart;
+  }
+
+  // Remove trailing --- if present
+  content = content.replace(/\n---\s*$/, '').trim();
+
+  return content || undefined;
+}
+
+/**
+ * Format the complete DevFlow description with progress summary and collapsible sections
+ */
+export function formatDevFlowDescription(parts: DevFlowDescriptionParts): string {
+  const sections: string[] = [];
+
+  // Part 1: Original description (always first)
+  if (parts.originalDescription) {
+    sections.push(parts.originalDescription);
+    sections.push('');
+  }
+
+  // Part 2: Divider and DevFlow header
+  sections.push('___');
+  sections.push('');
+  sections.push(DEVFLOW_MARKER);
+  sections.push('');
+
+  // Part 3: Progress summary
+  const phases = [
+    { name: 'Refinement', exists: !!parts.refinement, num: '1️⃣' },
+    { name: 'User Story', exists: !!parts.userStory, num: '2️⃣' },
+    { name: 'Technical Plan', exists: !!parts.technicalPlan, num: '3️⃣' },
+  ];
+
+  sections.push('**Progress:** ' + phases.map((p) => {
+    if (p.exists) {
+      return `${p.num} ${p.name} ✓`;
+    }
+    return `${p.num} ~~${p.name}~~`;
+  }).join(' → '));
+  sections.push('');
+
+  // Part 4: Phase 1 - Refinement
+  if (parts.refinement) {
+    sections.push('');
+    sections.push(PHASE_MARKERS.refinement.start);
+    sections.push('');
+    sections.push(parts.refinement.content);
+
+    if (parts.refinement.councilSummary) {
+      sections.push('');
+      sections.push(formatCouncilSummaryAsMarkdown(parts.refinement.councilSummary));
+    }
+
+    sections.push('');
+  }
+
+  // Part 5: Phase 2 - User Story
+  if (parts.userStory) {
+    sections.push(PHASE_MARKERS.userStory.start);
+    sections.push('');
+    sections.push(parts.userStory.content);
+
+    if (parts.userStory.councilSummary) {
+      sections.push('');
+      sections.push(formatCouncilSummaryAsMarkdown(parts.userStory.councilSummary));
+    }
+
+    sections.push('');
+  }
+
+  // Part 6: Phase 3 - Technical Plan
+  if (parts.technicalPlan) {
+    sections.push(PHASE_MARKERS.technicalPlan.start);
+    sections.push('');
+    sections.push(parts.technicalPlan.content);
+
+    // Add codebase context if provided
+    if (parts.technicalPlan.contextUsed) {
+      sections.push('');
+      sections.push('#### 🔍 Codebase Context');
+      sections.push('');
+      sections.push(`**Language:** ${parts.technicalPlan.contextUsed.language}`);
+      if (parts.technicalPlan.contextUsed.framework) {
+        sections.push(`**Framework:** ${parts.technicalPlan.contextUsed.framework}`);
+      }
+      sections.push(`**Dependencies analyzed:** ${parts.technicalPlan.contextUsed.dependencies}`);
+      sections.push(`**Conventions found:** ${parts.technicalPlan.contextUsed.conventions}`);
+      sections.push(`**Using RAG:** ${parts.technicalPlan.contextUsed.usingRAG ? 'Yes' : 'No'}`);
+
+      if (parts.technicalPlan.contextUsed.filesAnalyzed?.length > 0) {
+        sections.push('');
+        sections.push('**Referenced files:**');
+        parts.technicalPlan.contextUsed.filesAnalyzed.slice(0, 10).forEach((file) => {
+          sections.push(`- \`${file}\``);
+        });
+        if (parts.technicalPlan.contextUsed.filesAnalyzed.length > 10) {
+          sections.push(`- ... and ${parts.technicalPlan.contextUsed.filesAnalyzed.length - 10} more`);
+        }
+      }
+    }
+
+    // Add best practices if provided
+    if (parts.technicalPlan.bestPractices) {
+      sections.push('');
+      sections.push('#### 💡 Industry Best Practices');
+      sections.push('');
+      sections.push(`> Source: ${parts.technicalPlan.bestPractices.perplexityModel}`);
+      sections.push('');
+      sections.push(parts.technicalPlan.bestPractices.bestPractices);
+    }
+
+    if (parts.technicalPlan.councilSummary) {
+      sections.push('');
+      sections.push(formatCouncilSummaryAsMarkdown(parts.technicalPlan.councilSummary));
+    }
+
+    sections.push('');
+  }
+
+  return sections.join('\n');
+}
+
+// ============================================
+// Content-Only Formatters (without main headers)
+// For use inside collapsible sections
+// ============================================
+
+/**
+ * Format refinement content without the main H1 header
+ * Used inside collapsible sections where the header is the section title
+ */
+export function formatRefinementContent(refinement: RefinementOutput): string {
+  const sections: string[] = [];
+
+  // Task Type Badge (no H1 header)
+  const typeEmojis: Record<string, string> = {
+    feature: '✨',
+    bug: '🐛',
+    enhancement: '🔧',
+    chore: '🧹',
+  };
+  sections.push(`**Type:** ${typeEmojis[refinement.taskType] || '📋'} ${refinement.taskType.toUpperCase()}`);
+  sections.push('');
+
+  // Business Context
+  if (refinement.businessContext) {
+    sections.push('### Business Context');
+    sections.push('');
+    sections.push(refinement.businessContext);
+    sections.push('');
+  }
+
+  // Objectives
+  if (refinement.objectives && refinement.objectives.length > 0) {
+    sections.push('### Objectives');
+    sections.push('');
+    refinement.objectives.forEach((objective, i) => {
+      sections.push(`${i + 1}. ${objective}`);
+    });
+    sections.push('');
+  }
+
+  // Preliminary Acceptance Criteria
+  if (refinement.preliminaryAcceptanceCriteria && refinement.preliminaryAcceptanceCriteria.length > 0) {
+    sections.push('### Preliminary Acceptance Criteria');
+    sections.push('');
+    refinement.preliminaryAcceptanceCriteria.forEach((criterion, i) => {
+      sections.push(`${i + 1}. ${criterion}`);
+    });
+    sections.push('');
+  }
+
+  // Questions for Product Owner
+  if (refinement.questionsForPO && refinement.questionsForPO.length > 0) {
+    sections.push('### ❓ Questions for Product Owner');
+    sections.push('');
+    refinement.questionsForPO.forEach((question) => {
+      sections.push(`- ${question}`);
+    });
+    sections.push('');
+  }
+
+  // Suggested Split
+  if (refinement.suggestedSplit) {
+    sections.push('### 🔀 Suggested Split');
+    sections.push('');
+    sections.push(`**Reason:** ${refinement.suggestedSplit.reason}`);
+    sections.push('');
+    sections.push('**Proposed Stories:**');
+    sections.push('');
+
+    refinement.suggestedSplit.proposedStories.forEach((story, i) => {
+      sections.push(`#### ${i + 1}. ${story.title}`);
+      sections.push('');
+      sections.push(story.description);
+      sections.push('');
+
+      if (story.dependencies && story.dependencies.length > 0) {
+        sections.push('**Dependencies:**');
+        story.dependencies.forEach((depIndex) => {
+          const depTitle =
+            refinement.suggestedSplit!.proposedStories[depIndex]?.title || `Subtask ${depIndex + 1}`;
+          sections.push(`- Depends on: ${depTitle}`);
+        });
+        sections.push('');
+      }
+
+      if (story.acceptanceCriteria && story.acceptanceCriteria.length > 0) {
+        sections.push('**Acceptance Criteria:**');
+        story.acceptanceCriteria.forEach((criterion, idx) => {
+          sections.push(`${idx + 1}. ${criterion}`);
+        });
+        sections.push('');
+      }
+    });
+  }
+
+  // Complexity Estimate
+  const sizeEmojis: Record<string, string> = {
+    XS: '⚪',
+    S: '🟢',
+    M: '🟡',
+    L: '🟠',
+    XL: '🔴',
+  };
+  sections.push('### Complexity Estimate');
+  sections.push('');
+  sections.push(`${sizeEmojis[refinement.complexityEstimate] || '⚪'} **${refinement.complexityEstimate}** (T-shirt sizing)`);
+  sections.push('');
+
+  return sections.join('\n');
+}
+
+/**
+ * Format user story content without the main H1 header
+ * Used inside collapsible sections
+ */
+export function formatUserStoryContent(story: UserStoryGenerationOutput): string {
+  const sections: string[] = [];
+
+  // User Story Format (no H1 header)
+  sections.push('### Story');
+  sections.push('');
+  sections.push(`**As a** ${story.userStory.actor},`);
+  sections.push(`**I want** ${story.userStory.goal},`);
+  sections.push(`**So that** ${story.userStory.benefit}.`);
+  sections.push('');
+
+  // Business Value
+  if (story.businessValue) {
+    sections.push('### Business Value');
+    sections.push('');
+    sections.push(story.businessValue);
+    sections.push('');
+  }
+
+  // Acceptance Criteria
+  if (story.acceptanceCriteria && story.acceptanceCriteria.length > 0) {
+    sections.push('### Acceptance Criteria');
+    sections.push('');
+    story.acceptanceCriteria.forEach((criterion, i) => {
+      sections.push(`${i + 1}. ${criterion}`);
+    });
+    sections.push('');
+  }
+
+  // Definition of Done
+  if (story.definitionOfDone && story.definitionOfDone.length > 0) {
+    sections.push('### Definition of Done');
+    sections.push('');
+    story.definitionOfDone.forEach((item) => {
+      sections.push(`- ${item}`);
+    });
+    sections.push('');
+  }
+
+  // Story Points
+  sections.push('### Estimated Complexity');
+  sections.push('');
+  sections.push(`**Story Points:** ${story.storyPoints} (Fibonacci scale)`);
+  sections.push('');
+
+  return sections.join('\n');
+}
+
+/**
+ * Format technical plan content without the main H1 header
+ * Used inside collapsible sections
+ */
+export function formatTechnicalPlanContent(plan: TechnicalPlanGenerationOutput): string {
+  const sections: string[] = [];
+
+  // Architecture Decisions (no H1 header)
+  if (plan.architecture && plan.architecture.length > 0) {
+    sections.push('### Architecture Decisions');
+    sections.push('');
+    plan.architecture.forEach((decision, i) => {
+      sections.push(`${i + 1}. ${decision}`);
+    });
+    sections.push('');
+  }
+
+  // Files Affected
+  if (plan.filesAffected && plan.filesAffected.length > 0) {
+    sections.push('### Files to Modify');
+    sections.push('');
+    plan.filesAffected.forEach((file) => {
+      sections.push(`- \`${file}\``);
+    });
+    sections.push('');
+  }
+
+  // Implementation Steps
+  if (plan.implementationSteps && plan.implementationSteps.length > 0) {
+    sections.push('### Implementation Steps');
+    sections.push('');
+    plan.implementationSteps.forEach((step, i) => {
+      sections.push(`${i + 1}. ${step}`);
+    });
+    sections.push('');
+  }
+
+  // Technical Decisions
+  if (plan.technicalDecisions && plan.technicalDecisions.length > 0) {
+    sections.push('### Technical Decisions');
+    sections.push('');
+    plan.technicalDecisions.forEach((decision) => {
+      sections.push(`- ${decision}`);
+    });
+    sections.push('');
+  }
+
+  // Dependencies
+  if (plan.dependencies && plan.dependencies.length > 0) {
+    sections.push('### Dependencies');
+    sections.push('');
+    plan.dependencies.forEach((dep) => {
+      sections.push(`- ${dep}`);
+    });
+    sections.push('');
+  }
+
+  // Testing Strategy
+  if (plan.testingStrategy) {
+    sections.push('### Testing Strategy');
+    sections.push('');
+    sections.push(plan.testingStrategy);
+    sections.push('');
+  }
+
+  // Risks & Considerations
+  if (plan.risks && plan.risks.length > 0) {
+    sections.push('### Risks & Considerations');
+    sections.push('');
+    plan.risks.forEach((risk) => {
+      sections.push(`- ⚠️ ${risk}`);
+    });
+    sections.push('');
+  }
+
+  // Estimated Time
+  if (plan.estimatedTime) {
+    sections.push('### Estimated Time');
+    sections.push('');
+    const hours = Math.floor(plan.estimatedTime / 60);
+    const minutes = plan.estimatedTime % 60;
+    if (hours > 0) {
+      sections.push(`~${hours}h ${minutes > 0 ? `${minutes}m` : ''}`);
+    } else {
+      sections.push(`~${minutes}m`);
+    }
+    sections.push('');
+  }
 
   return sections.join('\n');
 }

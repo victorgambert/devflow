@@ -268,13 +268,17 @@ export class LinearClient {
 
   /**
    * Add a comment to an issue
+   * @returns The created comment ID
    */
-  async addComment(issueId: string, body: string): Promise<void> {
+  async addComment(issueId: string, body: string): Promise<string> {
     this.logger.info('Adding comment to issue', { issueId });
 
     try {
-      await this.client.createComment({ issueId, body });
-      this.logger.info('Comment added', { issueId });
+      const result = await this.client.createComment({ issueId, body });
+      const comment = await result.comment;
+      const commentId = comment?.id || '';
+      this.logger.info('Comment added', { issueId, commentId });
+      return commentId;
     } catch (error) {
       this.logger.error('Failed to add comment', error as Error, { issueId });
       throw error;
@@ -653,6 +657,80 @@ export class LinearClient {
       this.logger.error('Failed to update custom field', error as Error, { issueId, fieldId });
       throw error;
     }
+  }
+
+  // ============================================
+  // Sub-Issue Operations
+  // ============================================
+
+  /**
+   * Get children (sub-issues) of an issue
+   */
+  async getIssueChildren(issueId: string): Promise<Array<{
+    id: string;
+    identifier: string;
+    title: string;
+    state: { id: string; name: string } | null;
+  }>> {
+    this.logger.info('Getting issue children', { issueId });
+
+    try {
+      const issue = await this.client.issue(issueId);
+      const children = await issue.children();
+
+      const result = await Promise.all(
+        children.nodes.map(async (child) => {
+          const state = await child.state;
+          return {
+            id: child.id,
+            identifier: child.identifier,
+            title: child.title,
+            state: state ? { id: state.id, name: state.name } : null,
+          };
+        })
+      );
+
+      this.logger.info('Issue children retrieved', { issueId, count: result.length });
+      return result;
+    } catch (error) {
+      this.logger.error('Failed to get issue children', error as Error, { issueId });
+      throw error;
+    }
+  }
+
+  /**
+   * Update status of multiple issues in parallel
+   * Returns results for each issue (success or error)
+   */
+  async updateMultipleIssuesStatus(
+    issueIds: string[],
+    statusName: string
+  ): Promise<Array<{ issueId: string; success: boolean; error?: string }>> {
+    this.logger.info('Updating multiple issues status', { count: issueIds.length, statusName });
+
+    const results = await Promise.all(
+      issueIds.map(async (issueId) => {
+        try {
+          await this.updateStatus(issueId, statusName);
+          return { issueId, success: true };
+        } catch (error) {
+          return {
+            issueId,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      })
+    );
+
+    const successCount = results.filter((r) => r.success).length;
+    this.logger.info('Multiple issues status updated', {
+      total: issueIds.length,
+      success: successCount,
+      failed: issueIds.length - successCount,
+    });
+
+    return results;
   }
 }
 

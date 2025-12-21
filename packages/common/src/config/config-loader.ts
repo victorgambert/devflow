@@ -32,12 +32,12 @@ const LinearSystemConfigSchema = z.object({
     refinementReady: z.string().default('Refinement Ready'),
     refinementFailed: z.string().default('Refinement Failed'),
     // User Story
-    toUserStory: z.string().default('Refinement Ready'),
+    toUserStory: z.string().default('To User Story'),
     userStoryInProgress: z.string().default('UserStory In Progress'),
     userStoryReady: z.string().default('UserStory Ready'),
     userStoryFailed: z.string().default('UserStory Failed'),
     // Technical Plan
-    toPlan: z.string().default('UserStory Ready'),
+    toPlan: z.string().default('To Plan'),
     planInProgress: z.string().default('Plan In Progress'),
     planReady: z.string().default('Plan Ready'),
     planFailed: z.string().default('Plan Failed'),
@@ -155,12 +155,12 @@ export function loadConfig(): DevFlowConfig {
       refinementReady: process.env.LINEAR_STATUS_REFINEMENT_READY || 'Refinement Ready',
       refinementFailed: process.env.LINEAR_STATUS_REFINEMENT_FAILED || 'Refinement Failed',
       // User Story
-      toUserStory: process.env.LINEAR_STATUS_TO_USER_STORY || 'Refinement Ready',
+      toUserStory: process.env.LINEAR_STATUS_TO_USER_STORY || 'To User Story',
       userStoryInProgress: process.env.LINEAR_STATUS_USER_STORY_IN_PROGRESS || 'UserStory In Progress',
       userStoryReady: process.env.LINEAR_STATUS_USER_STORY_READY || 'UserStory Ready',
       userStoryFailed: process.env.LINEAR_STATUS_USER_STORY_FAILED || 'UserStory Failed',
       // Technical Plan
-      toPlan: process.env.LINEAR_STATUS_TO_PLAN || 'UserStory Ready',
+      toPlan: process.env.LINEAR_STATUS_TO_PLAN || 'To Plan',
       planInProgress: process.env.LINEAR_STATUS_PLAN_IN_PROGRESS || 'Plan In Progress',
       planReady: process.env.LINEAR_STATUS_PLAN_READY || 'Plan Ready',
       planFailed: process.env.LINEAR_STATUS_PLAN_FAILED || 'Plan Failed',

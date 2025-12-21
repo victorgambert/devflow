@@ -85,6 +85,19 @@ export class LinearMapper {
    * Map Linear state name to internal TaskStatus
    */
   mapStatusFromLinear(stateName?: string): string {
+    // Return the actual Linear state name for workflow routing
+    // The Three-Phase Agile workflow needs exact status name matching
+    // (e.g., "To Refinement" === "To Refinement")
+    if (!stateName) return TaskStatus.TODO;
+
+    return stateName;
+  }
+
+  /**
+   * Map Linear status to normalized internal TaskStatus (for generic processing)
+   * Use this when you need a normalized status, not the exact Linear state name
+   */
+  mapStatusToInternalStatus(stateName?: string): string {
     if (!stateName) return TaskStatus.TODO;
 
     const normalizedState = stateName.toLowerCase();

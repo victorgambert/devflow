@@ -18,6 +18,8 @@ const {
   appendRefinementToLinearIssue,
   createLinearSubtasks,
   addTaskTypeLabel,
+  postQuestionsAsComments,
+  getPOAnswersForTask,
 } = proxyActivities<typeof activities>({
   startToCloseTimeout: '5 minutes',
   retry: {
@@ -41,6 +43,12 @@ export interface RefinementWorkflowResult {
     created: number;
     failed: number;
   };
+  /** True if workflow is blocked waiting for PO answers */
+  blocked?: boolean;
+  /** True if waiting for PO to answer questions */
+  waitingForAnswers?: boolean;
+  /** Number of questions pending answers */
+  questionsCount?: number;
 }
 
 /**
@@ -67,7 +75,13 @@ export async function refinementWorkflow(
       updates: { status: LINEAR_STATUSES.refinementInProgress },
     });
 
-    // Step 3: Generate refinement (with external context from Figma/Sentry/GitHub if available)
+    // Step 2.5: Get any existing PO answers (from previous workflow runs)
+    const poAnswersResult = await getPOAnswersForTask({
+      linearIssueId: task.linearId,
+      projectId: input.projectId,
+    });
+
+    // Step 3: Generate refinement (with external context and PO answers if available)
     const result = await generateRefinement({
       task: {
         title: task.title,
@@ -77,6 +91,7 @@ export async function refinementWorkflow(
       },
       projectId: input.projectId,
       externalLinks: task.externalLinks,
+      poAnswers: poAnswersResult.answers.length > 0 ? poAnswersResult.answers : undefined,
     });
 
     // Step 3.5: Add task type label based on detected type (non-blocking)
@@ -90,12 +105,12 @@ export async function refinementWorkflow(
       });
     }
 
-    // Step 4: Append refinement to Linear issue
+    // Step 4: Append refinement to Linear issue (with council summary if enabled)
     await appendRefinementToLinearIssue({
       projectId: input.projectId,
       linearId: task.linearId,
       refinement: result.refinement,
-      multiLLM: result.multiLLM,
+      council: result.council,
     });
 
     // Step 4.5: Create sub-issues if complexity L or XL (BLOCKING)
@@ -125,13 +140,39 @@ export async function refinementWorkflow(
         created: subtaskResult.created.length,
         failed: 0,
       };
-
-      // Add success comment to Linear
-      // Need to import createLinearClient and resolveLinearApiKey within workflow context
-      // Since workflows can't import directly, we'll add comment via another activity
-      // For now, we'll skip the comment and rely on the subtasks themselves
     }
 
+    // Step 4.6: Check for questions requiring PO answers
+    const questions = result.refinement.questionsForPO || [];
+    const hasNewQuestions = questions.length > 0;
+    const previouslyAnsweredCount = poAnswersResult.answers.length;
+
+    // If there are new questions and we haven't gotten all answers yet
+    // (new questions may appear even after some answers were provided)
+    if (hasNewQuestions) {
+      // Post questions as individual comments in Linear
+      await postQuestionsAsComments({
+        taskId: task.id,
+        projectId: input.projectId,
+        linearIssueId: task.linearId,
+        questions: questions,
+      });
+
+      // Return blocked - don't update status to Refinement Ready
+      // Status stays "Refinement In Progress" until PO answers all questions
+      return {
+        success: true,
+        phase: 'refinement',
+        message: `Refinement blocked - ${questions.length} question(s) en attente de réponse du Product Owner`,
+        refinement: result.refinement,
+        subtasksCreated,
+        blocked: true,
+        waitingForAnswers: true,
+        questionsCount: questions.length,
+      };
+    }
+
+    // No questions (or all answered) - proceed to Refinement Ready
     // Step 5: Update status to Refinement Ready
     await updateLinearTask({
       projectId: input.projectId,
@@ -142,7 +183,9 @@ export async function refinementWorkflow(
     return {
       success: true,
       phase: 'refinement',
-      message: `Refinement complete for task ${task.identifier}`,
+      message: previouslyAnsweredCount > 0
+        ? `Refinement complete for task ${task.identifier} (${previouslyAnsweredCount} réponse(s) PO intégrée(s))`
+        : `Refinement complete for task ${task.identifier}`,
       refinement: result.refinement,
       subtasksCreated,
     };

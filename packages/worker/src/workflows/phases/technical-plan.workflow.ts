@@ -175,13 +175,13 @@ export async function technicalPlanWorkflow(
       bestPractices: bestPracticesResult,
     });
 
-    // Step 7: Append technical plan to Linear issue with best practices
+    // Step 7: Append technical plan to Linear issue (with council summary if enabled)
     await appendTechnicalPlanToLinearIssue({
       projectId: input.projectId,
       linearId: task.linearId,
       plan: result.plan,
       contextUsed: result.contextUsed,
-      multiLLM: result.multiLLM,
+      council: result.council,
       bestPractices: bestPracticesResult,
     });
 

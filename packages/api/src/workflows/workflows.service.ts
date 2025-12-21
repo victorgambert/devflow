@@ -4,7 +4,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { Connection, Client } from '@temporalio/client';
-import { createLogger, loadConfig, WorkflowConfig } from '@devflow/common';
+import { createLogger, loadConfig, WorkflowConfig, DEFAULT_WORKFLOW_CONFIG } from '@devflow/common';
 import { StartWorkflowDto } from '@/workflows/dto';
 
 @Injectable()
@@ -16,10 +16,14 @@ export class WorkflowsService {
   async onModuleInit() {
     try {
       // Load config once at service initialization
+      // Merge loaded statuses with DEFAULT_WORKFLOW_CONFIG for statusOrder and workflow behavior
       const fullConfig = loadConfig();
       this.workflowConfig = {
         linear: {
           statuses: fullConfig.linear.statuses,
+          statusOrder: DEFAULT_WORKFLOW_CONFIG.linear.statusOrder,
+          workflow: DEFAULT_WORKFLOW_CONFIG.linear.workflow,
+          features: DEFAULT_WORKFLOW_CONFIG.linear.features,
         },
       };
       this.logger.info('Workflow config loaded');

@@ -69,7 +69,122 @@ Project: indy-promocode-prod
 ⚠️  Some integrations are not configured yet.
 ```
 
-### 2. `test-full-project-setup.sh` - Setup complet interactif
+### 2. `test-refinement-workflow.sh` - Test du workflow de refinement (Nouveau)
+
+**Test E2E complet du workflow Three-Phase Agile - Phase 1 (Refinement).**
+
+Ce test valide le workflow complet de refinement en créant une vraie issue Linear et en déclenchant le workflow via webhook.
+
+**Usage:**
+```bash
+./tests/e2e/test-refinement-workflow.sh [options]
+```
+
+**Options:**
+- `--cleanup` : Supprime l'issue de test après exécution
+- `--team-id ID` : Spécifie l'ID de l'équipe Linear (auto-détecté sinon)
+- `--timeout N` : Timeout en secondes (défaut: 120)
+
+**Ce qui est testé:**
+1. ✅ Création d'une issue dans Linear avec status "To Refinement"
+2. ✅ Déclenchement du workflow via webhook `/webhooks/linear`
+3. ✅ Exécution du workflow Temporal (`refinementWorkflow`)
+4. ✅ Génération du refinement par l'IA
+5. ✅ Ajout du refinement dans la description Linear
+6. ✅ Passage au status "Refinement Ready"
+
+**Prérequis spécifiques:**
+```bash
+# Variables d'environnement requises
+export LINEAR_API_KEY="lin_api_xxx"
+export DEFAULT_PROJECT_ID="your-project-id"
+export OPENROUTER_API_KEY="sk-or-xxx"  # Pour la génération AI
+
+# Infrastructure nécessaire
+docker-compose up -d postgres redis temporal
+cd packages/api && pnpm dev    # API sur port 3001
+cd packages/worker && pnpm dev # Worker Temporal
+```
+
+**Exemple de sortie:**
+```
+══════════════════════════════════════════════════════════════════════
+  DevFlow E2E Test: Refinement Workflow
+══════════════════════════════════════════════════════════════════════
+
+[1/7] Checking API health...
+✅ API is healthy
+
+[2/7] Getting Linear team...
+ℹ️  Auto-detected team: Engineering (ENG)
+✅ Found "To Refinement" state: To Refinement
+
+[3/7] Creating test issue in Linear...
+✅ Created issue: ENG-123
+ℹ️  URL: https://linear.app/company/issue/ENG-123
+
+[4/7] Triggering workflow via webhook...
+✅ Workflow started: devflow-abc123
+
+[5/7] Monitoring workflow progress...
+ℹ️  Status changed: To Refinement → Refinement In Progress
+ℹ️  Status changed: Refinement In Progress → Refinement Ready
+
+[6/7] Verifying refinement output...
+✅ Refinement header found in description
+✅ Business context found
+✅ Complexity estimate found
+
+[7/7] Skipping cleanup
+ℹ️  Test issue preserved: ENG-123
+
+══════════════════════════════════════════════════════════════════════
+  ✅ Test Summary
+══════════════════════════════════════════════════════════════════════
+  Issue: ENG-123
+  Status: Refinement Ready
+  Duration: 45s
+```
+
+**Architecture testée:**
+```
+┌─────────────────┐
+│  Test Script    │  test-refinement-workflow.ts
+│  (TypeScript)   │
+└────────┬────────┘
+         │ 1. Create Linear Issue
+         ↓
+┌─────────────────┐
+│   Linear API    │  @linear/sdk
+└────────┬────────┘
+         │ 2. HTTP POST (webhook simulation)
+         ↓
+┌─────────────────┐
+│   DevFlow API   │  /webhooks/linear
+│    (NestJS)     │
+└────────┬────────┘
+         │ 3. Start workflow
+         ↓
+┌─────────────────┐
+│    Temporal     │  devflowWorkflow → refinementWorkflow
+│   (Workflow)    │
+└────────┬────────┘
+         │ 4. Execute activities
+         ↓
+┌─────────────────┐
+│    Worker       │  generateRefinement activity
+│  (Activities)   │  appendRefinementToLinearIssue
+└────────┬────────┘
+         │ 5. Update Linear
+         ↓
+┌─────────────────┐
+│   Linear API    │  Update description + status
+└─────────────────┘
+```
+
+---
+
+### 3. `test-full-project-setup.sh` - Setup complet interactif
 
 Guide complet de création et configuration d'un projet DevFlow.
 

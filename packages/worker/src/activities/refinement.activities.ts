@@ -28,6 +28,8 @@ export interface GenerateRefinementInput {
   projectId: string;
   /** External links to Figma, Sentry, GitHub Issues */
   externalLinks?: ExternalContextLinks;
+  /** Previous PO answers (from re-run after questions were answered) */
+  poAnswers?: Array<{ question: string; answer: string }>;
 }
 
 export interface GenerateRefinementOutput {
@@ -45,6 +47,8 @@ export async function generateRefinement(
     taskTitle: input.task.title,
     projectId: input.projectId,
     hasExternalLinks: !!input.externalLinks && hasAnyLink(input.externalLinks),
+    hasPOAnswers: !!input.poAnswers && input.poAnswers.length > 0,
+    poAnswersCount: input.poAnswers?.length || 0,
   });
 
   try {
@@ -88,12 +92,41 @@ export async function generateRefinement(
       });
     }
 
+    // Step 1.6: Format PO answers if available
+    let poAnswersContext = '';
+    if (input.poAnswers && input.poAnswers.length > 0) {
+      poAnswersContext = `
+
+---
+
+## 📋 Réponses du Product Owner
+
+Le Product Owner a répondu aux questions précédentes. **Vous DEVEZ intégrer ces réponses dans votre analyse.**
+
+`;
+      for (const qa of input.poAnswers) {
+        poAnswersContext += `### Question\n> ${qa.question}\n\n`;
+        poAnswersContext += `### Réponse du PO\n${qa.answer}\n\n---\n\n`;
+      }
+
+      poAnswersContext += `
+**⚠️ INSTRUCTIONS IMPORTANTES:**
+1. **Intégrez** les réponses ci-dessus dans votre analyse du Business Context et des Objectives
+2. **NE RÉPÉTEZ PAS** les questions déjà répondues dans \`questionsForPO\`
+3. **Mettez à jour** le scope et les critères d'acceptation en fonction des clarifications reçues
+4. Vous pouvez poser de **NOUVELLES questions** uniquement si de nouvelles ambiguïtés apparaissent
+5. Si toutes les ambiguïtés sont levées, retournez \`questionsForPO: []\` (tableau vide)
+
+`;
+      logger.info('PO answers included in context', { count: input.poAnswers.length });
+    }
+
     // Step 2: Load prompts from markdown files
     const prompts = await loadPrompts('refinement', {
       taskTitle: input.task.title,
       taskDescription: input.task.description || 'No description provided',
       taskPriority: input.task.priority,
-      externalContext: externalContextMarkdown,
+      externalContext: externalContextMarkdown + poAnswersContext,
     });
 
     // Step 3: Generate refinement with AI

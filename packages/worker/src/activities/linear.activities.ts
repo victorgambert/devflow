@@ -4,10 +4,12 @@
  */
 
 import { createLogger } from '@devflow/common';
+import { PrismaClient } from '@prisma/client';
 import type {
   RefinementOutput,
   UserStoryGenerationOutput,
   TechnicalPlanGenerationOutput,
+  CouncilSummary,
 } from '@devflow/common';
 import {
   createLinearClient,
@@ -17,6 +19,12 @@ import {
   formatRefinementAsMarkdown,
   formatUserStoryAsMarkdown,
   formatTechnicalPlanAsMarkdown,
+  // New structured formatting functions
+  parseDevFlowDescription,
+  formatDevFlowDescription,
+  formatRefinementContent,
+  formatUserStoryContent,
+  formatTechnicalPlanContent,
   DEVFLOW_CUSTOM_FIELDS,
 } from '@devflow/sdk';
 import { oauthResolver } from '@/services/oauth-context';
@@ -26,11 +34,12 @@ import {
 } from './context-extraction.activities';
 
 const logger = createLogger('LinearActivities');
+const prisma = new PrismaClient();
 
 /**
  * Resolve Linear API key for a project via OAuth
+ * Falls back to LINEAR_API_KEY environment variable for testing
  * TODO Phase 6: Implement Linear OAuth Device Flow
- * For now, throws error until Linear OAuth is implemented
  */
 async function resolveLinearApiKey(projectId: string): Promise<string> {
   try {
@@ -38,6 +47,16 @@ async function resolveLinearApiKey(projectId: string): Promise<string> {
     logger.info('Using OAuth token for Linear', { projectId });
     return token;
   } catch (error) {
+    // Fallback to LINEAR_API_KEY environment variable for E2E testing
+    const apiKey = process.env.LINEAR_API_KEY;
+    if (apiKey) {
+      logger.warn('OAuth failed, falling back to LINEAR_API_KEY env var', {
+        projectId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return apiKey;
+    }
+
     throw new Error(
       `No Linear OAuth connection configured for project ${projectId}. Linear OAuth Device Flow coming in Phase 6. Please configure via: POST /api/v1/auth/linear/device/initiate`,
     );
@@ -100,7 +119,8 @@ export async function syncLinearTask(input: SyncLinearTaskInput): Promise<SyncLi
     }
     const teamId = team.id;
 
-    logger.info('Task synced from Linear', { identifier: task.identifier, teamId });
+    logger.info('Task synced from Linear', { identifier: task.identifier, teamId, status: task.status });
+    logger.info('[DEBUG] Task status from Linear', { status: task.status, taskId: input.taskId });
 
     // Extract acceptance criteria from description (lines starting with "- [ ]" or "- [x]")
     const acceptanceCriteria = extractAcceptanceCriteria(task.description);
@@ -414,19 +434,14 @@ export async function appendWarningToLinearIssue(input: {
 /**
  * Append refinement content to Linear issue description
  * Phase 1 of Three-Phase Agile Workflow
+ *
+ * Uses structured formatting with collapsible sections and progress summary
  */
 export async function appendRefinementToLinearIssue(input: {
   projectId: string;
   linearId: string;
   refinement: RefinementOutput;
-  multiLLM?: {
-    models: Array<{
-      model: string;
-      score: number;
-    }>;
-    bestModel: string;
-    detailedExplanation: string;
-  };
+  council?: CouncilSummary;
 }): Promise<void> {
   logger.info('Appending refinement to Linear issue', { linearId: input.linearId });
 
@@ -436,20 +451,35 @@ export async function appendRefinementToLinearIssue(input: {
   try {
     const client = createLinearClient(apiKey);
 
-    // Format refinement as markdown
-    let markdown = formatRefinementAsMarkdown(input.refinement);
+    // Get current description to preserve original content and existing phases
+    const issue = await client.getIssue(input.linearId);
+    const currentDescription = issue.description || '';
 
-    // Add multi-LLM comparison section if used
-    if (input.multiLLM) {
-      markdown += '\n\n---\n\n';
-      markdown += '## 🤖 Multi-LLM Analysis\n\n';
-      markdown += input.multiLLM.detailedExplanation;
-    }
+    // Parse existing DevFlow content
+    const parsed = parseDevFlowDescription(currentDescription);
 
-    // Append to issue description
-    await client.appendToDescription(input.linearId, markdown);
+    // Format refinement content (without H1 header - will be in collapsible)
+    const refinementContent = formatRefinementContent(input.refinement);
 
-    logger.info('Refinement appended to Linear issue', { linearId: input.linearId });
+    // Build new structured description
+    const newDescription = formatDevFlowDescription({
+      originalDescription: parsed.originalDescription,
+      refinement: {
+        content: refinementContent,
+        councilSummary: input.council,
+      },
+      // Preserve existing phases if they exist
+      userStory: parsed.userStoryContent ? { content: parsed.userStoryContent } : undefined,
+      technicalPlan: parsed.technicalPlanContent ? { content: parsed.technicalPlanContent } : undefined,
+    });
+
+    // Replace entire description with new structured format
+    await client.updateDescription(input.linearId, newDescription);
+
+    logger.info('Refinement appended to Linear issue with structured format', {
+      linearId: input.linearId,
+      hasCouncil: !!input.council,
+    });
   } catch (error) {
     logger.error('Failed to append refinement to Linear', error as Error, { linearId: input.linearId });
     throw error;
@@ -459,19 +489,14 @@ export async function appendRefinementToLinearIssue(input: {
 /**
  * Append user story content to Linear issue description
  * Phase 2 of Three-Phase Agile Workflow
+ *
+ * Uses structured formatting with collapsible sections and progress summary
  */
 export async function appendUserStoryToLinearIssue(input: {
   projectId: string;
   linearId: string;
   userStory: UserStoryGenerationOutput;
-  multiLLM?: {
-    models: Array<{
-      model: string;
-      score: number;
-    }>;
-    bestModel: string;
-    detailedExplanation: string;
-  };
+  council?: CouncilSummary;
 }): Promise<void> {
   logger.info('Appending user story to Linear issue', { linearId: input.linearId });
 
@@ -481,20 +506,36 @@ export async function appendUserStoryToLinearIssue(input: {
   try {
     const client = createLinearClient(apiKey);
 
-    // Format user story as markdown
-    let markdown = formatUserStoryAsMarkdown(input.userStory);
+    // Get current description to preserve original content and existing phases
+    const issue = await client.getIssue(input.linearId);
+    const currentDescription = issue.description || '';
 
-    // Add multi-LLM comparison section if used
-    if (input.multiLLM) {
-      markdown += '\n\n---\n\n';
-      markdown += '## 🤖 Multi-LLM Analysis\n\n';
-      markdown += input.multiLLM.detailedExplanation;
-    }
+    // Parse existing DevFlow content
+    const parsed = parseDevFlowDescription(currentDescription);
 
-    // Append to issue description
-    await client.appendToDescription(input.linearId, markdown);
+    // Format user story content (without H1 header - will be in collapsible)
+    const userStoryContent = formatUserStoryContent(input.userStory);
 
-    logger.info('User story appended to Linear issue', { linearId: input.linearId });
+    // Build new structured description
+    const newDescription = formatDevFlowDescription({
+      originalDescription: parsed.originalDescription,
+      // Preserve existing refinement if it exists
+      refinement: parsed.refinementContent ? { content: parsed.refinementContent } : undefined,
+      userStory: {
+        content: userStoryContent,
+        councilSummary: input.council,
+      },
+      // Preserve existing technical plan if it exists
+      technicalPlan: parsed.technicalPlanContent ? { content: parsed.technicalPlanContent } : undefined,
+    });
+
+    // Replace entire description with new structured format
+    await client.updateDescription(input.linearId, newDescription);
+
+    logger.info('User story appended to Linear issue with structured format', {
+      linearId: input.linearId,
+      hasCouncil: !!input.council,
+    });
   } catch (error) {
     logger.error('Failed to append user story to Linear', error as Error, { linearId: input.linearId });
     throw error;
@@ -504,6 +545,8 @@ export async function appendUserStoryToLinearIssue(input: {
 /**
  * Append technical plan content to Linear issue description
  * Phase 3 of Three-Phase Agile Workflow
+ *
+ * Uses structured formatting with collapsible sections and progress summary
  */
 export async function appendTechnicalPlanToLinearIssue(input: {
   projectId: string;
@@ -517,14 +560,7 @@ export async function appendTechnicalPlanToLinearIssue(input: {
     filesAnalyzed: string[];
     usingRAG: boolean;
   };
-  multiLLM?: {
-    models: Array<{
-      model: string;
-      score: number;
-    }>;
-    bestModel: string;
-    detailedExplanation: string;
-  };
+  council?: CouncilSummary;
   bestPractices?: {
     bestPractices: string;
     perplexityModel: string;
@@ -538,55 +574,69 @@ export async function appendTechnicalPlanToLinearIssue(input: {
   try {
     const client = createLinearClient(apiKey);
 
-    // Format technical plan as markdown
-    let markdown = formatTechnicalPlanAsMarkdown(input.plan);
+    // Get current description to preserve original content and existing phases
+    const issue = await client.getIssue(input.linearId);
+    const currentDescription = issue.description || '';
 
-    // Add codebase context section if provided
-    if (input.contextUsed) {
-      markdown += '\n\n---\n\n';
-      markdown += '## 🔍 Codebase Context\n\n';
-      markdown += `**Language:** ${input.contextUsed.language}\n`;
+    // Parse existing DevFlow content
+    const parsed = parseDevFlowDescription(currentDescription);
 
-      if (input.contextUsed.framework) {
-        markdown += `**Framework:** ${input.contextUsed.framework}\n`;
-      }
+    // Format technical plan content (without H1 header - will be in collapsible)
+    const technicalPlanContent = formatTechnicalPlanContent(input.plan);
 
-      markdown += `**Dependencies analyzed:** ${input.contextUsed.dependencies}\n`;
-      markdown += `**Conventions found:** ${input.contextUsed.conventions}\n`;
-      markdown += `**Using RAG:** ${input.contextUsed.usingRAG ? 'Yes' : 'No (legacy analysis)'}\n`;
+    // Build new structured description
+    const newDescription = formatDevFlowDescription({
+      originalDescription: parsed.originalDescription,
+      // Preserve existing phases if they exist
+      refinement: parsed.refinementContent ? { content: parsed.refinementContent } : undefined,
+      userStory: parsed.userStoryContent ? { content: parsed.userStoryContent } : undefined,
+      technicalPlan: {
+        content: technicalPlanContent,
+        councilSummary: input.council,
+        contextUsed: input.contextUsed,
+        bestPractices: input.bestPractices,
+      },
+    });
 
-      if (input.contextUsed.filesAnalyzed && input.contextUsed.filesAnalyzed.length > 0) {
-        markdown += '\n**Referenced files:**\n';
-        input.contextUsed.filesAnalyzed.forEach((file) => {
-          markdown += `- \`${file}\`\n`;
-        });
-      }
+    // Replace entire description with new structured format
+    await client.updateDescription(input.linearId, newDescription);
 
-      markdown += '\n> This plan was generated with codebase context to follow existing patterns.\n';
-    }
-
-    // Add best practices section if provided
-    if (input.bestPractices) {
-      markdown += '\n\n---\n\n';
-      markdown += '## 💡 Industry Best Practices\n\n';
-      markdown += `> Fetched from ${input.bestPractices.perplexityModel}\n\n`;
-      markdown += input.bestPractices.bestPractices;
-      markdown += '\n\n> These best practices were retrieved from Perplexity to ensure the implementation follows industry standards.\n';
-    }
-
-    // Add multi-LLM comparison section if used
-    if (input.multiLLM) {
-      markdown += '\n\n---\n\n';
-      markdown += '## 🤖 Multi-LLM Analysis\n\n';
-      markdown += input.multiLLM.detailedExplanation;
-    }
-
-    // Append to issue description
-    await client.appendToDescription(input.linearId, markdown);
-
-    logger.info('Technical plan appended to Linear issue', { linearId: input.linearId });
+    logger.info('Technical plan appended to Linear issue with structured format', {
+      linearId: input.linearId,
+      hasCouncil: !!input.council,
+      hasContext: !!input.contextUsed,
+      hasBestPractices: !!input.bestPractices,
+    });
   } catch (error) {
     logger.error('Failed to append technical plan to Linear', error as Error, { linearId: input.linearId });
+    throw error;
+  }
+}
+
+/**
+ * Add a comment to a Linear issue
+ */
+export async function addCommentToLinearIssue(input: {
+  projectId: string;
+  linearId: string;
+  body: string;
+}): Promise<{ commentId: string }> {
+  logger.info('Adding comment to Linear issue', { linearId: input.linearId });
+
+  const apiKey = await resolveLinearApiKey(input.projectId);
+
+  try {
+    const client = createLinearClient(apiKey);
+    const commentId = await client.addComment(input.linearId, input.body);
+
+    logger.info('Comment added to Linear issue', {
+      linearId: input.linearId,
+      commentId,
+    });
+
+    return { commentId };
+  } catch (error) {
+    logger.error('Failed to add comment to Linear issue', error as Error, { linearId: input.linearId });
     throw error;
   }
 }
@@ -604,6 +654,8 @@ export async function createLinearSubtasks(input: {
     dependencies?: number[];
     acceptanceCriteria?: string[];
   }>;
+  /** Override status for created sub-issues (e.g., "To Refinement") */
+  initialStatus?: string;
 }): Promise<{
   created: Array<{ index: number; issueId: string; identifier: string; title: string }>;
   failed: Array<{ index: number; title: string; error: string }>;
@@ -623,14 +675,36 @@ export async function createLinearSubtasks(input: {
     // Get parent issue details
     const parentIssue = await client.getIssue(input.parentIssueId);
     const team = await parentIssue.team;
-    const state = await parentIssue.state;
+    const parentState = await parentIssue.state;
 
     if (!team) {
       throw new Error(`Parent issue ${input.parentIssueId} has no team`);
     }
 
     const teamId = team.id;
-    const parentStateId = state?.id;
+
+    // Resolve target state: use initialStatus if provided, otherwise inherit from parent
+    let targetStateId = parentState?.id;
+
+    if (input.initialStatus) {
+      const states = await team.states();
+      const targetState = states.nodes.find(
+        (s) => s.name.toLowerCase() === input.initialStatus!.toLowerCase()
+      );
+
+      if (targetState) {
+        targetStateId = targetState.id;
+        logger.info('Using initial status for sub-issues', {
+          statusName: input.initialStatus,
+          stateId: targetStateId,
+        });
+      } else {
+        logger.warn('Initial status not found, using parent status', {
+          requestedStatus: input.initialStatus,
+          fallbackStateId: targetStateId,
+        });
+      }
+    }
 
     // Create each sub-issue
     for (let i = 0; i < input.proposedStories.length; i++) {
@@ -664,7 +738,7 @@ export async function createLinearSubtasks(input: {
           title: story.title,
           description,
           parentId: input.parentIssueId,
-          stateId: parentStateId,
+          stateId: targetStateId,
           subIssueSortOrder: i,
         });
 
@@ -756,6 +830,197 @@ export async function addTaskTypeLabel(input: {
     // This allows the workflow to continue even if labeling fails
     logger.warn('Continuing workflow despite label failure');
     return { labelId: '', created: false };
+  }
+}
+
+// ============================================
+// PO Questions Activities
+// ============================================
+
+/**
+ * Format a question as a Linear comment
+ */
+function formatQuestionComment(question: string, index: number, total: number): string {
+  return `❓ **Question pour le Product Owner** (${index + 1}/${total})
+
+> ${question}
+
+---
+*Répondez à ce commentaire pour que DevFlow puisse continuer le refinement.*`;
+}
+
+/**
+ * Post questions for the Product Owner as individual Linear comments
+ * Each question becomes a separate comment for easy threading
+ *
+ * @returns Array of comment IDs created
+ */
+export async function postQuestionsAsComments(input: {
+  taskId: string; // Local task ID (not Linear ID)
+  projectId: string;
+  linearIssueId: string;
+  questions: string[];
+}): Promise<{ questionCommentIds: string[] }> {
+  logger.info('Posting questions as comments', {
+    taskId: input.taskId,
+    linearIssueId: input.linearIssueId,
+    questionsCount: input.questions.length,
+  });
+
+  if (input.questions.length === 0) {
+    return { questionCommentIds: [] };
+  }
+
+  const apiKey = await resolveLinearApiKey(input.projectId);
+  const client = createLinearClient(apiKey);
+
+  const questionCommentIds: string[] = [];
+
+  try {
+    // Find the Task in database by linearId
+    const task = await prisma.task.findFirst({
+      where: { linearId: input.linearIssueId },
+    });
+
+    if (!task) {
+      throw new Error(`Task not found for linearId: ${input.linearIssueId}`);
+    }
+
+    // Post each question as a separate comment
+    for (let i = 0; i < input.questions.length; i++) {
+      const question = input.questions[i];
+      const commentBody = formatQuestionComment(question, i, input.questions.length);
+
+      // Create comment in Linear
+      const commentId = await client.addComment(input.linearIssueId, commentBody);
+      questionCommentIds.push(commentId);
+
+      // Store question in database for tracking
+      await prisma.taskQuestion.create({
+        data: {
+          taskId: task.id,
+          questionText: question,
+          linearCommentId: commentId,
+          answered: false,
+        },
+      });
+
+      logger.info('Question posted as comment', {
+        questionIndex: i,
+        commentId,
+        taskId: task.id,
+      });
+    }
+
+    // Mark task as awaiting PO answers
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { awaitingPOAnswers: true },
+    });
+
+    logger.info('All questions posted, task marked as awaiting answers', {
+      taskId: task.id,
+      questionsCount: input.questions.length,
+    });
+
+    return { questionCommentIds };
+  } catch (error) {
+    logger.error('Failed to post questions as comments', error as Error, {
+      linearIssueId: input.linearIssueId,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Check if all questions for a task have been answered
+ * Used by the workflow to determine if it should continue
+ */
+export async function checkQuestionsAnswered(input: {
+  taskId: string;
+  projectId: string;
+}): Promise<{ allAnswered: boolean; answers: Record<string, string>; pendingCount: number }> {
+  logger.info('Checking if all questions are answered', { taskId: input.taskId });
+
+  try {
+    // Find task by linearId
+    const task = await prisma.task.findFirst({
+      where: { linearId: input.taskId },
+      include: { questions: true },
+    });
+
+    if (!task) {
+      throw new Error(`Task not found for linearId: ${input.taskId}`);
+    }
+
+    const questions = task.questions;
+    const answers: Record<string, string> = {};
+    let pendingCount = 0;
+
+    for (const q of questions) {
+      if (q.answered && q.answerText) {
+        answers[q.questionText] = q.answerText;
+      } else {
+        pendingCount++;
+      }
+    }
+
+    const allAnswered = pendingCount === 0 && questions.length > 0;
+
+    logger.info('Questions status checked', {
+      taskId: task.id,
+      totalQuestions: questions.length,
+      answered: questions.length - pendingCount,
+      pending: pendingCount,
+      allAnswered,
+    });
+
+    return { allAnswered, answers, pendingCount };
+  } catch (error) {
+    logger.error('Failed to check questions status', error as Error, { taskId: input.taskId });
+    throw error;
+  }
+}
+
+/**
+ * Get all PO answers for a task (to inject into refinement prompt on re-run)
+ */
+export async function getPOAnswersForTask(input: {
+  linearIssueId: string;
+  projectId: string;
+}): Promise<{ answers: Array<{ question: string; answer: string }> }> {
+  logger.info('Getting PO answers for task', { linearIssueId: input.linearIssueId });
+
+  try {
+    const task = await prisma.task.findFirst({
+      where: { linearId: input.linearIssueId },
+      include: {
+        questions: {
+          where: { answered: true },
+        },
+      },
+    });
+
+    if (!task) {
+      return { answers: [] };
+    }
+
+    const answers = task.questions
+      .filter((q) => q.answered && q.answerText)
+      .map((q) => ({
+        question: q.questionText,
+        answer: q.answerText!,
+      }));
+
+    logger.info('PO answers retrieved', {
+      linearIssueId: input.linearIssueId,
+      answersCount: answers.length,
+    });
+
+    return { answers };
+  } catch (error) {
+    logger.error('Failed to get PO answers', error as Error, { linearIssueId: input.linearIssueId });
+    throw error;
   }
 }
 

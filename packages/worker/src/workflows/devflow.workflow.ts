@@ -42,6 +42,11 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       projectId: input.projectId,
     });
 
+    // DEBUG: Log task status and expected status
+    console.log('[devflowWorkflow] Task status:', task.status);
+    console.log('[devflowWorkflow] Expected toRefinement:', LINEAR_STATUSES.toRefinement);
+    console.log('[devflowWorkflow] Status match:', task.status === LINEAR_STATUSES.toRefinement);
+
     // Route to appropriate sub-workflow based on status
     // Phase 1: Refinement
     if (task.status === LINEAR_STATUSES.toRefinement) {
@@ -64,11 +69,8 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       };
     }
 
-    // Phase 2: User Story
-    if (
-      task.status === LINEAR_STATUSES.toUserStory ||
-      task.status === LINEAR_STATUSES.refinementReady
-    ) {
+    // Phase 2: User Story (only triggered by explicit "To User Story" status)
+    if (task.status === LINEAR_STATUSES.toUserStory) {
       const result = await executeChild(userStoryWorkflow, {
         workflowId: `user-story-${input.taskId}-${Date.now()}`,
         args: [
@@ -88,8 +90,8 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       };
     }
 
-    // Phase 3: Technical Plan
-    if (task.status === LINEAR_STATUSES.toPlan || task.status === LINEAR_STATUSES.userStoryReady) {
+    // Phase 3: Technical Plan (only triggered by explicit "To Plan" status)
+    if (task.status === LINEAR_STATUSES.toPlan) {
       const result = await executeChild(technicalPlanWorkflow, {
         workflowId: `technical-plan-${input.taskId}-${Date.now()}`,
         args: [
@@ -114,11 +116,9 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       message:
         `Status "${task.status}" is not a valid workflow trigger for the three-phase Agile system. ` +
         `Expected one of: ` +
-        `"${LINEAR_STATUSES.toRefinement}", ` +
-        `"${LINEAR_STATUSES.toUserStory}", ` +
-        `"${LINEAR_STATUSES.refinementReady}", ` +
-        `"${LINEAR_STATUSES.toPlan}", ` +
-        `"${LINEAR_STATUSES.userStoryReady}"`,
+        `"${LINEAR_STATUSES.toRefinement}" (Phase 1), ` +
+        `"${LINEAR_STATUSES.toUserStory}" (Phase 2), ` +
+        `"${LINEAR_STATUSES.toPlan}" (Phase 3)`,
       type: 'InvalidWorkflowTrigger',
     });
   } catch (error) {

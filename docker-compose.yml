@@ -99,6 +99,7 @@ services:
       - .env
     environment:
       - NODE_ENV=development
+      - PORT=8000
       - DATABASE_URL=postgresql://devflow:changeme@postgres:5432/devflow?schema=public
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
@@ -133,8 +134,8 @@ services:
       dockerfile: ./packages/worker/Dockerfile
     container_name: devflow-worker
     restart: unless-stopped
-    env_file:
-      - .env
+    # env_file:  # Commented out - all vars defined in environment below
+    #   - .env
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://devflow:changeme@postgres:5432/devflow?schema=public
@@ -148,6 +149,15 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - TEMPORAL_ADDRESS=temporal:7233
+      - OAUTH_ENCRYPTION_KEY=${OAUTH_ENCRYPTION_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - DEFAULT_PROJECT_ID=${DEFAULT_PROJECT_ID}
+      - LINEAR_API_KEY=${LINEAR_API_KEY}
+      # LLM Council - Multi-model deliberation
+      - ENABLE_COUNCIL=true
+      - COUNCIL_MODELS=anthropic/claude-sonnet-4,openai/gpt-4o,google/gemini-2.0-flash-exp
+      - COUNCIL_CHAIRMAN_MODEL=anthropic/claude-sonnet-4
+      - COUNCIL_TIMEOUT=120000
     depends_on:
       postgres:
         condition: service_healthy

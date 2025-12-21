@@ -7,7 +7,12 @@
 
 import { Injectable } from '@nestjs/common';
 import { OAuthProvider } from '@prisma/client';
-import { createLogger } from '@devflow/common';
+import {
+  createLogger,
+  DEFAULT_WORKFLOW_CONFIG,
+  getStatusRank,
+  getStatusAtRank,
+} from '@devflow/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import {
   createLinearClient,
@@ -545,6 +550,126 @@ export class LinearSyncApiService {
   }
 
   // ============================================
+  // PO Question Tracking
+  // ============================================
+
+  /**
+   * Check if a comment is an answer to a DevFlow question
+   * Returns true if the parent comment ID matches a TaskQuestion's linearCommentId
+   */
+  async checkIfAnswerToQuestion(
+    parentCommentId: string,
+    projectId: string,
+  ): Promise<boolean> {
+    logger.info('Checking if comment is answer to question', { parentCommentId });
+
+    const question = await this.prisma.taskQuestion.findUnique({
+      where: { linearCommentId: parentCommentId },
+    });
+
+    return !!question;
+  }
+
+  /**
+   * Mark a question as answered
+   * Updates the TaskQuestion with the answer text and comment ID
+   */
+  async markQuestionAnswered(
+    questionCommentId: string,
+    answerText: string,
+    answerCommentId: string,
+  ): Promise<{ taskId: string; questionId: string }> {
+    logger.info('Marking question as answered', { questionCommentId, answerCommentId });
+
+    const question = await this.prisma.taskQuestion.update({
+      where: { linearCommentId: questionCommentId },
+      data: {
+        answered: true,
+        answerText,
+        answerCommentId,
+        answeredAt: new Date(),
+      },
+    });
+
+    logger.info('Question marked as answered', {
+      questionId: question.id,
+      taskId: question.taskId,
+    });
+
+    return { taskId: question.taskId, questionId: question.id };
+  }
+
+  /**
+   * Check if all questions for a task have been answered
+   * Returns true if all TaskQuestions for the task have answered=true
+   */
+  async checkAllQuestionsAnswered(linearIssueId: string): Promise<{
+    allAnswered: boolean;
+    total: number;
+    answered: number;
+    pending: number;
+  }> {
+    logger.info('Checking if all questions are answered', { linearIssueId });
+
+    const task = await this.prisma.task.findFirst({
+      where: { linearId: linearIssueId },
+      include: { questions: true },
+    });
+
+    if (!task || task.questions.length === 0) {
+      return { allAnswered: true, total: 0, answered: 0, pending: 0 };
+    }
+
+    const answered = task.questions.filter((q) => q.answered).length;
+    const pending = task.questions.length - answered;
+    const allAnswered = pending === 0;
+
+    logger.info('Questions status', {
+      linearIssueId,
+      total: task.questions.length,
+      answered,
+      pending,
+      allAnswered,
+    });
+
+    return {
+      allAnswered,
+      total: task.questions.length,
+      answered,
+      pending,
+    };
+  }
+
+  /**
+   * Reset awaiting PO answers flag and clear questions when all are answered
+   * Called when re-running the workflow after all answers received
+   */
+  async clearAwaitingPOAnswers(linearIssueId: string): Promise<void> {
+    logger.info('Clearing awaiting PO answers flag', { linearIssueId });
+
+    const task = await this.prisma.task.findFirst({
+      where: { linearId: linearIssueId },
+    });
+
+    if (task) {
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: { awaitingPOAnswers: false },
+      });
+    }
+  }
+
+  /**
+   * Get task ID from linear issue ID
+   */
+  async getTaskIdFromLinearId(linearIssueId: string): Promise<string | null> {
+    const task = await this.prisma.task.findFirst({
+      where: { linearId: linearIssueId },
+    });
+    return task?.id || null;
+  }
+
+  // ============================================
   // Mapping Helpers
   // ============================================
 
@@ -605,5 +730,265 @@ export class LinearSyncApiService {
       return 'LOW';
     }
     return 'MEDIUM';
+  }
+
+  // ============================================
+  // Sub-Issue Cascade Operations
+  // ============================================
+
+  /**
+   * Cascade status change to all children of an issue
+   * When a parent issue is moved to a trigger status (e.g., "To User Story"),
+   * all its children are also moved to that status (triggering their workflows in parallel)
+   *
+   * @returns Summary of cascade operation
+   */
+  async cascadeStatusToChildren(
+    projectId: string,
+    parentIssueId: string,
+    targetStatus: string,
+  ): Promise<{
+    parentId: string;
+    parentIdentifier?: string;
+    childrenCount: number;
+    cascaded: Array<{ id: string; identifier: string; success: boolean; error?: string }>;
+    skipped: Array<{ id: string; identifier: string; reason: string }>;
+  }> {
+    logger.info('Cascading status to children', {
+      projectId,
+      parentIssueId,
+      targetStatus,
+    });
+
+    const client = await this.getLinearClient(projectId);
+
+    // Get children of the parent issue
+    const children = await client.getIssueChildren(parentIssueId);
+
+    if (children.length === 0) {
+      logger.info('No children found, nothing to cascade', { parentIssueId });
+      return {
+        parentId: parentIssueId,
+        childrenCount: 0,
+        cascaded: [],
+        skipped: [],
+      };
+    }
+
+    // Filter children: only cascade to those not already at target status
+    const childrenToUpdate: typeof children = [];
+    const skipped: Array<{ id: string; identifier: string; reason: string }> = [];
+
+    for (const child of children) {
+      if (child.state?.name.toLowerCase() === targetStatus.toLowerCase()) {
+        skipped.push({
+          id: child.id,
+          identifier: child.identifier,
+          reason: `Already at "${targetStatus}"`,
+        });
+      } else {
+        childrenToUpdate.push(child);
+      }
+    }
+
+    if (childrenToUpdate.length === 0) {
+      logger.info('All children already at target status', {
+        parentIssueId,
+        targetStatus,
+        skippedCount: skipped.length,
+      });
+      return {
+        parentId: parentIssueId,
+        childrenCount: children.length,
+        cascaded: [],
+        skipped,
+      };
+    }
+
+    // Update all children in parallel
+    const results = await client.updateMultipleIssuesStatus(
+      childrenToUpdate.map((c) => c.id),
+      targetStatus,
+    );
+
+    // Map results back to include identifiers
+    const cascaded = results.map((result, index) => ({
+      id: result.issueId,
+      identifier: childrenToUpdate[index].identifier,
+      success: result.success,
+      error: result.error,
+    }));
+
+    const successCount = cascaded.filter((r) => r.success).length;
+    logger.info('Status cascaded to children', {
+      parentIssueId,
+      targetStatus,
+      total: children.length,
+      updated: successCount,
+      skipped: skipped.length,
+      failed: cascaded.length - successCount,
+    });
+
+    return {
+      parentId: parentIssueId,
+      childrenCount: children.length,
+      cascaded,
+      skipped,
+    };
+  }
+
+  /**
+   * Check if an issue has children (is a parent/epic)
+   */
+  async hasChildren(projectId: string, issueId: string): Promise<boolean> {
+    const client = await this.getLinearClient(projectId);
+    const children = await client.getIssueChildren(issueId);
+    return children.length > 0;
+  }
+
+  // ============================================
+  // Parent Status Rollup
+  // ============================================
+
+  /**
+   * Calculate the minimum (least progressed) status among children
+   * Returns the status name that the parent should have
+   *
+   * Uses centralized statusOrder from DEFAULT_WORKFLOW_CONFIG
+   */
+  async calculateParentStatusFromChildren(
+    projectId: string,
+    parentIssueId: string,
+  ): Promise<{
+    minimumStatus: string | null;
+    childrenStatuses: Array<{ identifier: string; status: string; rank: number }>;
+  }> {
+    const client = await this.getLinearClient(projectId);
+    const children = await client.getIssueChildren(parentIssueId);
+
+    if (children.length === 0) {
+      return { minimumStatus: null, childrenStatuses: [] };
+    }
+
+    // Get status rank for each child using centralized config
+    const childrenStatuses = children.map((child) => ({
+      identifier: child.identifier,
+      status: child.state?.name || 'Unknown',
+      rank: getStatusRank(child.state?.name || 'Unknown'),
+    }));
+
+    // Find minimum rank (least progress)
+    const minRank = Math.min(...childrenStatuses.map((c) => c.rank));
+    const minimumStatus = getStatusAtRank(minRank) || null;
+
+    logger.info('Calculated parent status from children', {
+      parentIssueId,
+      childrenCount: children.length,
+      minimumStatus,
+      minRank,
+      childrenStatuses,
+    });
+
+    return { minimumStatus, childrenStatuses };
+  }
+
+  /**
+   * Update parent status based on children's minimum status (rollup)
+   * Called when a child completes a workflow phase
+   *
+   * @returns Whether the parent status was updated
+   */
+  async rollupParentStatus(
+    projectId: string,
+    childIssueId: string,
+  ): Promise<{
+    updated: boolean;
+    parentId?: string;
+    parentIdentifier?: string;
+    previousStatus?: string;
+    newStatus?: string;
+    reason?: string;
+  }> {
+    logger.info('Rolling up parent status', { projectId, childIssueId });
+
+    const client = await this.getLinearClient(projectId);
+
+    // Get the child issue and its parent
+    const childIssue = await client.getIssue(childIssueId);
+    const parent = await childIssue.parent;
+
+    if (!parent) {
+      logger.debug('Child has no parent, skipping rollup', { childIssueId });
+      return { updated: false, reason: 'No parent' };
+    }
+
+    const parentState = await parent.state;
+    const previousStatus = parentState?.name || 'Unknown';
+
+    // Calculate what status the parent should have
+    const { minimumStatus, childrenStatuses } = await this.calculateParentStatusFromChildren(
+      projectId,
+      parent.id,
+    );
+
+    if (!minimumStatus) {
+      return {
+        updated: false,
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        reason: 'No children or could not calculate minimum status',
+      };
+    }
+
+    // Check if parent already at the correct status
+    if (previousStatus.toLowerCase() === minimumStatus.toLowerCase()) {
+      logger.debug('Parent already at correct status', {
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        status: previousStatus,
+      });
+      return {
+        updated: false,
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        previousStatus,
+        reason: 'Already at correct status',
+      };
+    }
+
+    // Update parent status
+    try {
+      await client.updateStatus(parent.id, minimumStatus);
+
+      logger.info('Parent status rolled up', {
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        previousStatus,
+        newStatus: minimumStatus,
+        childrenStatuses,
+      });
+
+      return {
+        updated: true,
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        previousStatus,
+        newStatus: minimumStatus,
+      };
+    } catch (error) {
+      logger.error('Failed to rollup parent status', error as Error, {
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        targetStatus: minimumStatus,
+      });
+
+      return {
+        updated: false,
+        parentId: parent.id,
+        parentIdentifier: parent.identifier,
+        previousStatus,
+        reason: `Failed to update: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 }

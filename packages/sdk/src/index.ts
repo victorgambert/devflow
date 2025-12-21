@@ -36,6 +36,15 @@ export {
   formatRefinementAsMarkdown,
   formatUserStoryAsMarkdown,
   formatTechnicalPlanAsMarkdown,
+  formatCouncilSummaryAsMarkdown,
+  // New structured formatting functions
+  parseDevFlowDescription,
+  formatDevFlowDescription,
+  formatRefinementContent,
+  formatUserStoryContent,
+  formatTechnicalPlanContent,
+  type ParsedDevFlowDescription,
+  type DevFlowDescriptionParts,
 } from './linear/spec-formatter';
 export {
   LinearSyncService,

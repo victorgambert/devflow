@@ -43,7 +43,8 @@ async function getPromptTemplates(
   }
 
   // Charger depuis les fichiers
-  const promptsDir = path.join(__dirname, 'prompts', phase);
+  // Note: __dirname is /dist/agents/prompts, phase directories are at the same level
+  const promptsDir = path.join(__dirname, phase);
   const systemPath = path.join(promptsDir, 'system.md');
   const userPath = path.join(promptsDir, 'user.md');
 

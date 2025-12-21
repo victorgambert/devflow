@@ -8,6 +8,8 @@ Perform backlog refinement for the following request:
 
 **Priority:** {{taskPriority}}
 
+{{externalContext}}
+
 ## Your Analysis
 
 Please provide a comprehensive refinement analysis covering:
@@ -27,5 +29,3 @@ Please provide a comprehensive refinement analysis covering:
 6. **COMPLEXITY ESTIMATE** - XS/S/M/L/XL based on scope, uncertainty, and dependencies
 
 Remember: Focus on business needs and clarity, not technical implementation details.
-
-{{externalContext}}

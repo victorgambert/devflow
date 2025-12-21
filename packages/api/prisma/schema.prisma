@@ -99,11 +99,15 @@ model Task {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
+  // PO Questions tracking
+  awaitingPOAnswers Boolean @default(false) @map("awaiting_po_answers")
+
   // Relations
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workflows   Workflow[]
   specs       TaskSpec[]
   comments    TaskComment[]
+  questions   TaskQuestion[]
 
   @@map("tasks")
   @@index([projectId])
@@ -144,6 +148,39 @@ model TaskComment {
   @@index([taskId])
   @@index([linearId])
   @@index([linearCreatedAt])
+}
+
+// ============================================
+// Task Questions (PO Questions from Refinement)
+// ============================================
+
+model TaskQuestion {
+  id              String    @id @default(cuid())
+  taskId          String    @map("task_id")
+
+  // Question content
+  questionText    String    @map("question_text") @db.Text
+
+  // Linear comment tracking
+  linearCommentId String    @unique @map("linear_comment_id")
+
+  // Answer tracking
+  answered        Boolean   @default(false)
+  answerText      String?   @map("answer_text") @db.Text
+  answerCommentId String?   @map("answer_comment_id")
+  answeredAt      DateTime? @map("answered_at")
+
+  // Timestamps
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_questions")
+  @@index([taskId])
+  @@index([linearCommentId])
+  @@index([answered])
 }
 
 // ============================================

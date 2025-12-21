@@ -3,7 +3,13 @@
  */
 
 import { Injectable, Optional } from '@nestjs/common';
-import { createLogger } from '@devflow/common';
+import {
+  createLogger,
+  DEFAULT_WORKFLOW_CONFIG,
+  isTriggerStatus,
+  isCascadeStatus,
+  isRollupStatus,
+} from '@devflow/common';
 import { WorkflowsService } from '@/workflows/workflows.service';
 import { LinearSyncApiService, CommentContext } from '@/linear/linear-sync-api.service';
 
@@ -95,20 +101,40 @@ export class WebhooksService {
         };
       }
 
-      const triggerStatuses = [
-        process.env.LINEAR_STATUS_TO_REFINEMENT || 'To Refinement',
-        process.env.LINEAR_STATUS_TO_USER_STORY || 'Refinement Ready',
-        process.env.LINEAR_STATUS_TO_PLAN || 'UserStory Ready',
-      ];
+      // Check if this issue completed a phase and should trigger parent rollup
+      const projectId = process.env.DEFAULT_PROJECT_ID;
+      let rollupResult = null;
+
+      if (isRollupStatus(stateName || '') && this.linearSyncService && projectId) {
+        try {
+          rollupResult = await this.linearSyncService.rollupParentStatus(projectId, issue.id);
+
+          if (rollupResult.updated) {
+            this.logger.info('Parent status rolled up after child completion', {
+              childId: issue.id,
+              childIdentifier: issue.identifier,
+              parentIdentifier: rollupResult.parentIdentifier,
+              previousStatus: rollupResult.previousStatus,
+              newStatus: rollupResult.newStatus,
+            });
+          }
+        } catch (rollupError) {
+          // Non-blocking: log error but continue
+          this.logger.warn('Failed to rollup parent status', {
+            childId: issue.id,
+            error: rollupError instanceof Error ? rollupError.message : 'Unknown error',
+          });
+        }
+      }
 
       this.logger.info('Checking workflow triggers', {
         issueId: issue?.id,
         stateName,
-        triggerStatuses,
+        triggerStatuses: DEFAULT_WORKFLOW_CONFIG.linear.workflow.triggerStatuses,
       });
 
-      // Check if the issue moved to any of the trigger statuses
-      if (triggerStatuses.includes(stateName)) {
+      // Check if the issue moved to a trigger status
+      if (isTriggerStatus(stateName || '')) {
         this.logger.info('Issue moved to trigger status, starting workflow', {
           issueId: issue?.id,
           identifier: issue?.identifier,
@@ -116,16 +142,66 @@ export class WebhooksService {
         });
 
         try {
-          // Map Linear projectId to DevFlow projectId
-          // TODO: Create a proper mapping table in database
-          const projectId = process.env.DEFAULT_PROJECT_ID;
-
+          // projectId already defined above for rollup
           this.logger.info('Using DevFlow projectId', {
             devflowProjectId: projectId,
             linearProjectId: issue.projectId,
           });
 
-          // Start the DevFlow workflow (router will determine which phase)
+          // Check if this is a cascade-eligible status and issue has children
+          // If so, cascade the status to all children (triggering their workflows in parallel)
+          let cascadeResult = null;
+          if (isCascadeStatus(stateName || '') && this.linearSyncService && projectId) {
+            try {
+              cascadeResult = await this.linearSyncService.cascadeStatusToChildren(
+                projectId,
+                issue.id,
+                stateName,
+              );
+
+              if (cascadeResult.childrenCount > 0) {
+                this.logger.info('Status cascaded to children', {
+                  parentId: issue.id,
+                  parentIdentifier: issue.identifier,
+                  targetStatus: stateName,
+                  childrenCount: cascadeResult.childrenCount,
+                  cascaded: cascadeResult.cascaded.length,
+                  skipped: cascadeResult.skipped.length,
+                });
+
+                // If parent has children, skip parent workflow - only children need processing
+                // Parent is just an epic/container at this point
+                this.logger.info('Skipping parent workflow - children will be processed individually', {
+                  parentId: issue.id,
+                  parentIdentifier: issue.identifier,
+                });
+
+                return {
+                  received: true,
+                  action: payload?.action,
+                  type: payload?.type,
+                  autoSynced: this.autoSyncEnabled,
+                  workflowStarted: false,
+                  parentSkipped: true,
+                  triggerStatus: stateName,
+                  cascade: {
+                    childrenCount: cascadeResult.childrenCount,
+                    cascaded: cascadeResult.cascaded.map((c) => c.identifier),
+                    skipped: cascadeResult.skipped.map((s) => s.identifier),
+                  },
+                };
+              }
+            } catch (cascadeError) {
+              // Non-blocking: log error but continue with parent workflow
+              this.logger.warn('Failed to cascade status to children', {
+                parentId: issue.id,
+                error: cascadeError instanceof Error ? cascadeError.message : 'Unknown error',
+              });
+            }
+          }
+
+          // Start the DevFlow workflow for this issue (no children or cascade failed)
+          // Note: Each child will trigger its own webhook when status is updated
           const result = await this.workflowsService.start({
             taskId: issue.id,
             projectId,
@@ -236,6 +312,92 @@ export class WebhooksService {
       await this.autoSyncComment(commentId, issueId, `comment:${action}`);
     }
 
+    // Check if this is a reply to a DevFlow question (PO answer detection)
+    const parentCommentId = comment?.parent?.id;
+    const projectId = process.env.DEFAULT_PROJECT_ID;
+
+    if (action === 'create' && parentCommentId && this.linearSyncService && projectId && issueId) {
+      const isAnswerToQuestion = await this.linearSyncService.checkIfAnswerToQuestion(
+        parentCommentId,
+        projectId,
+      );
+
+      if (isAnswerToQuestion) {
+        this.logger.info('Detected answer to DevFlow question', {
+          parentCommentId,
+          answerCommentId: commentId,
+          issueId,
+        });
+
+        // Mark the question as answered
+        const { taskId } = await this.linearSyncService.markQuestionAnswered(
+          parentCommentId,
+          comment?.body || '',
+          commentId,
+        );
+
+        // Check if all questions are answered
+        const questionsStatus = await this.linearSyncService.checkAllQuestionsAnswered(issueId);
+
+        this.logger.info('Questions status after answer', {
+          issueId,
+          ...questionsStatus,
+        });
+
+        if (questionsStatus.allAnswered) {
+          // All questions answered - trigger workflow re-run
+          this.logger.info('All questions answered, triggering refinement re-run', {
+            issueId,
+            taskId,
+          });
+
+          try {
+            // Clear the awaiting flag
+            await this.linearSyncService.clearAwaitingPOAnswers(issueId);
+
+            // Re-trigger the workflow
+            const result = await this.workflowsService.start({
+              taskId: issueId,
+              projectId,
+              workflowType: 'devflowWorkflow',
+            });
+
+            this.logger.info('Workflow re-triggered after PO answers', {
+              workflowId: result.workflowId,
+              issueId,
+            });
+
+            return {
+              received: true,
+              action,
+              type: 'Comment',
+              issueSynced: this.autoSyncEnabled,
+              commentSynced: this.autoSyncEnabled,
+              answerDetected: true,
+              allQuestionsAnswered: true,
+              workflowRestarted: true,
+              workflowId: result.workflowId,
+            };
+          } catch (error) {
+            this.logger.error('Failed to restart workflow after PO answers', error as Error, {
+              issueId,
+            });
+          }
+        }
+
+        return {
+          received: true,
+          action,
+          type: 'Comment',
+          issueSynced: this.autoSyncEnabled,
+          commentSynced: this.autoSyncEnabled,
+          answerDetected: true,
+          allQuestionsAnswered: questionsStatus.allAnswered,
+          questionsRemaining: questionsStatus.pending,
+        };
+      }
+    }
+
     // Only process create actions for commands
     if (action !== 'create') {
       return {
@@ -288,7 +450,7 @@ export class WebhooksService {
       };
     }
 
-    const projectId = process.env.DEFAULT_PROJECT_ID;
+    // projectId already defined above
     if (!projectId) {
       return {
         received: true,
