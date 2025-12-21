@@ -72,8 +72,11 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       };
     }
 
-    // Phase 2: User Story (only triggered by explicit "To User Story" status)
-    if (task.status === LINEAR_STATUSES.toUserStory) {
+    // Phase 2: User Story (also accepts "In Progress" for PO answer re-triggers)
+    if (
+      task.status === LINEAR_STATUSES.toUserStory ||
+      task.status === LINEAR_STATUSES.userStoryInProgress
+    ) {
       const result = await executeChild(userStoryWorkflow, {
         workflowId: `user-story-${input.taskId}-${Date.now()}`,
         args: [
@@ -93,8 +96,11 @@ export async function devflowWorkflow(input: WorkflowInput): Promise<WorkflowRes
       };
     }
 
-    // Phase 3: Technical Plan (only triggered by explicit "To Plan" status)
-    if (task.status === LINEAR_STATUSES.toPlan) {
+    // Phase 3: Technical Plan (also accepts "In Progress" for PO answer re-triggers)
+    if (
+      task.status === LINEAR_STATUSES.toPlan ||
+      task.status === LINEAR_STATUSES.planInProgress
+    ) {
       const result = await executeChild(technicalPlanWorkflow, {
         workflowId: `technical-plan-${input.taskId}-${Date.now()}`,
         args: [
